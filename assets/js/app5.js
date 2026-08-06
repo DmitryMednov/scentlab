@@ -1,0 +1,55 @@
+(() => {
+const NavBar = (props) => React.createElement((window.ScentLabDesignSystem_38c3c1 || {}).NavBar || 'div', props);
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "transition": "sweep",
+  "grain": true
+}/*EDITMODE-END*/;
+
+const SL2 = new Proxy({}, { get: (_, k) => (props) => React.createElement(window.__SL2[k], props) });
+function App() {
+  const [tw, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [pastJourney, setPastJourney] = React.useState(false);
+  const [lightScene, setLightScene] = React.useState(true); // scene 1 is light
+  const onProgress = (p) => {
+    setPastJourney(p >= 6.4);
+    const s = window.__SL2.JOURNEY_SCENES[Math.max(0, Math.min(6, Math.round(p)))];
+    setLightScene(!!(s && s.light));
+  };
+  const nav = { links: ['Experience', 'Contact'], iconBase: '../../assets/icons' };
+  const goTo = (id) => {
+    const map = { 'Experience':'experience', 'Contact':'booking' };
+    const el = document.getElementById(map[id]);
+    if (el) window.scrollTo({ top: el.offsetTop - 60, behavior: 'smooth' });
+  };
+  return (
+    <div>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40 }}>
+        <NavBar {...nav} tone={pastJourney || lightScene ? 'default' : 'inverse'} condensed={pastJourney}
+          onNavigate={goTo} onCta={() => goTo('Contact')} style={{ position: 'static' }} />
+      </div>
+      <SL2.Journey onProgress={onProgress} mode={tw.transition} grain={tw.grain} />
+      <SL2.Experience />
+      <SL2.Booking />
+      <SL2.Footer />
+      <TweaksPanel>
+        <TweakSection label="Cinematic journey" />
+        <TweakRadio label="Scene transition" value={tw.transition} options={['dissolve', 'sweep', 'push']}
+          onChange={(v) => setTweak('transition', v)} />
+        <TweakToggle label="Film grain" value={tw.grain} onChange={(v) => setTweak('grain', v)} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+/* Boot only once everything the page needs exists (bundled script order varies). */
+const boot = () => {
+  const r = window.__SL2 || {};
+  const ready = window.ScentLabDesignSystem_38c3c1 && r.Journey && r.Experience && r.Booking && r.Footer && window.TweaksPanel && !window.TweaksPanel.__stub && window.__resources;
+  if (!ready) { setTimeout(boot, 120); return; }
+  if (!window.__slRoot) window.__slRoot = ReactDOM.createRoot(document.getElementById('sl-root'));
+  window.__slRoot.render(<App />);
+};
+boot();
+
+})();
