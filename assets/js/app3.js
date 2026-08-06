@@ -92,10 +92,10 @@ function Scene({ scene, index, progress, mode }) {
     <div style={{ position:'absolute', inset:0, opacity:m.opacity, zIndex:m.z, pointerEvents: active ? 'auto' : 'none' }}>
       <div style={{ position:'absolute', inset:'-6%', transform:m.transform }}>
         {scene.img
-          ? <img src={imgUrl} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', objectPosition:scene.pos,
+          ? <img src={imgUrl} alt="" data-sl-bg={index === 6 ? undefined : ''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', objectPosition:scene.pos,
               filter: m.extraBlur > 0.2 ? 'blur(' + m.extraBlur + 'px)' : 'none', transform:'scale(' + (scene.zoom || 1.04) + ')', transformOrigin: scene.pos }} />
-          : <Atmosphere kind={scene.atmosphere} />}
-        {scene.img && !scene.light && <div style={{ position:'absolute', inset:0, background:'var(--scrim-full)' }} />}
+          : <div data-sl-bg="" style={{ position:'absolute', inset:0 }}><Atmosphere kind={scene.atmosphere} /></div>}
+        {!scene.light && <div style={{ position:'absolute', inset:0, background:'var(--scrim-full)' }} />}
         {scene.img && scene.light && <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top,rgba(252,250,246,.6) 0%,rgba(252,250,246,.06) 45%)' }} />}
       </div>
       <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', justifyContent:'flex-end', padding:'0 var(--gutter) 9vh',
@@ -146,7 +146,7 @@ function HeroBottle({ progress }) {
         background:'radial-gradient(circle,' + scene.glow + ' 0%, transparent 65%)', filter:'blur(24px)', transition:'background var(--dur-scene) var(--ease-in-out)' }} />
       <div style={{ position:'relative', height:'64vh' }}>
         {/* live liquid, behind the glass */}
-        <div style={{ position:'absolute', left:'27%', width:'46.4%', top:'30.5%', height:'61.5%', overflow:'hidden', borderRadius:'3px 3px 8px 8px' }}>
+        <div data-sl-bottle="" style={{ position:'absolute', left:'27%', width:'46.4%', top:'30.5%', height:'61.5%', overflow:'hidden', borderRadius:'3px 3px 8px 8px' }}>
           <div style={{ position:'absolute', left:'-8%', right:'-8%', top:'12%', bottom:'-2%', transformOrigin:'50% 100%', animation:'sl-slosh 5.6s var(--ease-in-out) infinite alternate' }}>
             <div style={{ position:'absolute', inset:0, overflow:'hidden', background:'linear-gradient(rgba(214,186,133,.16) 0%, rgba(199,158,90,.28) 55%, rgba(154,110,44,.40) 100%)' }}>
               {[18, 44, 66, 82].map((lx, i) => (
@@ -160,8 +160,8 @@ function HeroBottle({ progress }) {
               background:'rgba(214,186,133,.16)', animation:'sl-spin 21s linear infinite reverse' }} />
           </div>
         </div>
-        <img src={R().bottle} alt="" style={{ position:'relative', height:'100%', width:'auto', display:'block', filter:'drop-shadow(0 44px 54px rgba(10,8,5,.45))' }} />
-        <img src={R().bottle} alt="" style={{ position:'absolute', inset:0, height:'100%', width:'auto', mixBlendMode:'screen', opacity:.24,
+        <img src={R().bottle} alt="" data-sl-bottle="" style={{ position:'relative', height:'100%', width:'auto', display:'block', filter:'drop-shadow(0 44px 54px rgba(10,8,5,.45))' }} />
+        <img src={R().bottle} alt="" data-sl-bottle="" style={{ position:'absolute', inset:0, height:'100%', width:'auto', mixBlendMode:'screen', opacity:.24,
           filter:scene.tint, transition:'filter var(--dur-scene) var(--ease-in-out)' }} />
         <div style={{ position:'absolute', left:'50%', top:'58%', transform:'translateX(-50%)', textAlign:'center', whiteSpace:'nowrap',
           fontFamily:'var(--font-display)', fontWeight:300, fontSize:'2.6vh', letterSpacing:'.14em',
@@ -184,7 +184,11 @@ function Journey({ onProgress, mode = 'sweep', grain = true }) {
   const [progress, setProgress] = React.useState(isNaN(dbg) ? 0 : dbg);
   const wrapRef = React.useRef(null);
   React.useEffect(() => {
-    if (!isNaN(dbg)) return; // pinned via #p= for previews
+    if (!isNaN(dbg)) { // pinned via #p= for previews
+      window.__SL2.__journeyProgress = dbg;
+      window.dispatchEvent(new CustomEvent('sl:progress', { detail: dbg }));
+      return;
+    }
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
@@ -194,6 +198,8 @@ function Journey({ onProgress, mode = 'sweep', grain = true }) {
         const p = clamp((-el.getBoundingClientRect().top) / (runway / SCENES.length), 0, SCENES.length - 1);
         setProgress(p);
         onProgress?.(p);
+        window.__SL2.__journeyProgress = p;
+        window.dispatchEvent(new CustomEvent('sl:progress', { detail: p }));
       });
     };
     window.addEventListener('scroll', onScroll, { passive:true });
@@ -209,6 +215,7 @@ function Journey({ onProgress, mode = 'sweep', grain = true }) {
   return (
     <div ref={wrapRef} style={{ height:(SCENES.length * 120) + 'vh', position:'relative', background:'var(--ink-900)' }}>
       <div style={{ position:'sticky', top:0, height:'100vh', overflow:'hidden' }}>
+        <div id="sl-fx-mount" style={{ position:'absolute', inset:0, zIndex:8, transition:'opacity .8s ease' }} />
         {SCENES.map((s, i) => <Scene key={s.id} scene={s} index={i} progress={progress} mode={mode} />)}
         <HeroBottle progress={progress} />
         {grain && <div style={{ position:'absolute', inset:0, zIndex:25, opacity:'var(--grain-opacity)', backgroundImage:'repeating-conic-gradient(#fff 0% 25%,#000 0% 50%)', backgroundSize:'3px 3px', pointerEvents:'none' }} />}
