@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/design-project-setup-dphojv
   workflow_dispatch:
 
 permissions:
