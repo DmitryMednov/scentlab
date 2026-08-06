@@ -17,7 +17,7 @@ const SCENES = [
     glow:'rgba(140,190,150,.5)', tint:'sepia(.3) hue-rotate(60deg) saturate(1.6) brightness(1.12)' },
   { id:'warmth', label:'Warmth', title:'Warmth, rising', feelings:['Deep.','Slow.','Comfortable.'], img:'scene2', pos:'2% 72%', zoom:1.9, light:false,
     glow:'rgba(200,140,70,.55)', tint:'sepia(.9) hue-rotate(-10deg) saturate(1.8) brightness(1.05)' },
-  { id:'spark', label:'Spark', title:'A brighter pulse', feelings:['Energy.','Creativity.','Joy.'], img:'scene3', pos:'100% 62%', zoom:2.05, light:true,
+  { id:'spark', label:'Spark', title:'A brighter pulse', feelings:['Energy.','Creativity.','Joy.'], img:'scene3', pos:'100% 62%', zoom:2.05, light:false,
     glow:'rgba(240,170,60,.5)', tint:'sepia(.8) hue-rotate(-25deg) saturate(2) brightness(1.12)' },
   { id:'flow', label:'Flow', title:'Let it move you', feelings:['Freedom.','Clarity.','Motion.'], atmosphere:'water', light:false,
     glow:'rgba(120,200,215,.5)', tint:'sepia(.5) hue-rotate(140deg) saturate(1.8) brightness(1.1)' },
@@ -133,6 +133,7 @@ function Scene({ scene, index, progress, mode }) {
 }
 
 /* ── the fixed hero bottle ─────────────────────────────────────────────── */
+const IS_NARROW = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
 function HeroBottle({ progress }) {
   const opacity = 1;
   const idx = clamp(Math.round(progress), 0, 6);
@@ -140,12 +141,13 @@ function HeroBottle({ progress }) {
   const rot = Math.sin(progress * 1.9) * 1.6;
   const dy = Math.sin(progress * 2.6) * 12;
   const scale = 1 + Math.sin(progress * 1.3) * 0.02;
+  const bottleH = IS_NARROW ? '42vh' : '64vh';
   return (
-    <div aria-hidden="true" style={{ position:'absolute', left:'50%', top:'47%', zIndex:15, opacity, pointerEvents:'none',
+    <div aria-hidden="true" style={{ position:'absolute', left:'50%', top:IS_NARROW ? '40%' : '47%', zIndex:15, opacity, pointerEvents:'none',
       transform:'translate(-50%,-50%) translateY(' + dy + 'px) rotate(' + rot + 'deg) scale(' + scale + ')' }}>
       <div style={{ position:'absolute', left:'50%', top:'52%', transform:'translate(-50%,-50%)', width:'70vmin', height:'70vmin', borderRadius:'50%',
         background:'radial-gradient(circle,' + scene.glow + ' 0%, transparent 65%)', filter:'blur(24px)', transition:'background var(--dur-scene) var(--ease-in-out)' }} />
-      <div style={{ position:'relative', height:'64vh' }}>
+      <div style={{ position:'relative', height:bottleH }}>
         {/* live liquid, behind the glass */}
         <div data-sl-bottle="" style={{ position:'absolute', left:'27%', width:'46.4%', top:'30.5%', height:'61.5%', overflow:'hidden', borderRadius:'3px 3px 8px 8px' }}>
           <div style={{ position:'absolute', left:'-8%', right:'-8%', top:'12%', bottom:'-2%', transformOrigin:'50% 100%', animation:'sl-slosh 5.6s var(--ease-in-out) infinite alternate' }}>
@@ -170,7 +172,7 @@ function HeroBottle({ progress }) {
           textShadow: scene.light ? 'none' : '0 0 1px rgba(80,60,30,.9), 0 1px 3px rgba(40,30,15,.45)',
           transition:'color var(--dur-scene) var(--ease-in-out)' }}>
           TIJON
-          <div style={{ fontFamily:'var(--font-text)', fontSize:'.9vh', fontWeight:500, letterSpacing:'.4em', textTransform:'uppercase', marginTop:'.8vh', opacity:.8 }}>Eau de parfum · West Palm Beach</div>
+          <div style={{ fontFamily:'var(--font-text)', fontSize:'.85vh', fontWeight:500, letterSpacing:'.22em', textTransform:'uppercase', marginTop:'.8vh', opacity:.8 }}>Eau de parfum · West Palm Beach</div>
           <div style={{ display:'inline-block', marginTop:'1.6vh', padding:'.5vh 1.6vh', border:'1px solid currentColor', borderRadius:2, opacity:.85,
             fontFamily:'var(--font-display)', fontStyle:'italic', fontWeight:300, fontSize:'1.7vh', letterSpacing:'.06em', textTransform:'none' }}>my perfume</div>
         </div>
@@ -201,10 +203,13 @@ function Journey({ onProgress, mode = 'sweep', grain = true }) {
       const runway = el.offsetHeight - window.innerHeight;
       return clamp((-el.getBoundingClientRect().top) / (runway / SCENES.length), 0, SCENES.length - 1);
     };
-    const tick = () => {
+    let prevT = 0;
+    const tick = (now) => {
+      const dt = prevT ? Math.min((now - prevT) / 1000, 0.1) : 1 / 60;
+      prevT = now;
       const target = compute();
       if (isNaN(cur)) cur = target;
-      cur += (target - cur) * 0.16;
+      cur += (target - cur) * Math.min(1, dt * 11);
       if (Math.abs(target - cur) < 0.002) cur = target;
       setProgress((prev) => (prev === cur ? prev : cur));
       onProgress?.(cur);
@@ -213,6 +218,11 @@ function Journey({ onProgress, mode = 'sweep', grain = true }) {
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
+    /* rAF-driven snap — native smooth scrollTo is silently dropped by some
+       engines, so the glide to the nearest whole scene is animated by hand
+       and cancelled the moment the user takes over. */
+    let snapRaf = 0, snapping = false;
+    const cancelSnap = () => { snapping = false; cancelAnimationFrame(snapRaf); };
     const snap = () => {
       const el = wrapRef.current; if (!el) return;
       const p = compute();
@@ -220,11 +230,31 @@ function Journey({ onProgress, mode = 'sweep', grain = true }) {
       const nearest = Math.round(p);
       if (Math.abs(p - nearest) < 0.02) return;
       const runway = el.offsetHeight - window.innerHeight;
-      window.scrollTo({ top: el.offsetTop + (runway / SCENES.length) * nearest, behavior:'smooth' });
+      const from = window.scrollY;
+      const to = el.offsetTop + (runway / SCENES.length) * nearest;
+      const t0 = performance.now(), dur = Math.min(650, 250 + Math.abs(to - from) * 0.4);
+      snapping = true;
+      const step = (now) => {
+        if (!snapping) return;
+        const k = clamp((now - t0) / dur, 0, 1);
+        const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        window.scrollTo(0, from + (to - from) * e);
+        if (k < 1) snapRaf = requestAnimationFrame(step);
+        else snapping = false;
+      };
+      snapRaf = requestAnimationFrame(step);
     };
-    const onScroll = () => { clearTimeout(snapT); snapT = setTimeout(snap, 170); };
+    const onScroll = () => { if (snapping) return; clearTimeout(snapT); snapT = setTimeout(snap, 170); };
+    const onUserScroll = () => { cancelSnap(); clearTimeout(snapT); snapT = setTimeout(snap, 170); };
     window.addEventListener('scroll', onScroll, { passive:true });
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); clearTimeout(snapT); };
+    window.addEventListener('wheel', onUserScroll, { passive:true });
+    window.addEventListener('touchmove', onUserScroll, { passive:true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('wheel', onUserScroll);
+      window.removeEventListener('touchmove', onUserScroll);
+      cancelAnimationFrame(raf); cancelSnap(); clearTimeout(snapT);
+    };
   }, []);
   const active = clamp(Math.round(progress), 0, 6);
   const goTo = (i) => {

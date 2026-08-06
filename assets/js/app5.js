@@ -7,7 +7,9 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "grain": true
 }/*EDITMODE-END*/;
 
-const SL2 = new Proxy({}, { get: (_, k) => (props) => React.createElement(window.__SL2[k], props) });
+/* cache wrapper components — a fresh function identity per render makes React
+   remount the whole subtree on every App state change */
+const SL2 = new Proxy({}, { get: (t, k) => t[k] || (t[k] = (props) => React.createElement(window.__SL2[k], props)) });
 function App() {
   const [tw, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [pastJourney, setPastJourney] = React.useState(false);
@@ -17,7 +19,8 @@ function App() {
     const s = window.__SL2.JOURNEY_SCENES[Math.max(0, Math.min(6, Math.round(p)))];
     setLightScene(!!(s && s.light));
   };
-  const nav = { links: ['Experience'], iconBase: '../../assets/icons', cta: 'Book a team session' };
+  const isNarrow = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+  const nav = { links: isNarrow ? [] : ['Experience'], iconBase: '../../assets/icons', cta: isNarrow ? 'Book now' : 'Book a team session' };
   const goTo = (id) => {
     const map = { 'Experience':'experience' };
     const el = document.getElementById(map[id]);
@@ -25,7 +28,11 @@ function App() {
   };
   return (
     <div>
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40 }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40,
+        background: pastJourney ? 'rgba(252,250,246,.9)' : 'transparent',
+        backdropFilter: pastJourney ? 'blur(14px)' : 'none',
+        boxShadow: pastJourney ? '0 1px 0 rgba(16,12,9,.08)' : 'none',
+        transition: 'background .4s ease, box-shadow .4s ease' }}>
         <NavBar {...nav} tone={pastJourney || lightScene ? 'default' : 'inverse'} condensed={pastJourney}
           onNavigate={goTo} onCta={() => window.open(BOOKING_URL, '_blank', 'noopener')} style={{ position: 'static' }} />
       </div>

@@ -711,6 +711,11 @@ function activateEffect(idx) {
   applyFxConfig(currentFx.cfg);
 }
 
+function veilDown() {
+  veilEl.style.transition = 'opacity 780ms ease-out';
+  veilEl.style.opacity = '0';
+}
+
 function startVeil(fromIdx, toIdx) {
   const [a] = VEIL_GRADS[Math.max(fromIdx, 0)];
   const [b, bg] = VEIL_GRADS[toIdx];
@@ -719,12 +724,23 @@ function startVeil(fromIdx, toIdx) {
   veilEl.style.opacity = '0.92';
   pendingIdx = toIdx;
   clearTimeout(startVeil._t);
+  clearTimeout(startVeil._safety);
   startVeil._t = setTimeout(() => {
-    activateEffect(pendingIdx);
+    try {
+      activateEffect(pendingIdx);
+    } catch (e) {
+      /* a failed effect build must never leave the veil parked over the
+         page — fall back to the DOM art direction for this scene */
+      console.warn('[fx] effect activation failed', e);
+      document.body.classList.remove('sl-fx-on', 'sl-fx-bottle');
+      mountEl.style.opacity = '0';
+      currentFx = null;
+    }
     activeIdx = pendingIdx;
-    veilEl.style.transition = 'opacity 780ms ease-out';
-    veilEl.style.opacity = '0';
+    veilDown();
   }, 430);
+  /* belt and braces: whatever happens, the veil clears */
+  startVeil._safety = setTimeout(veilDown, 1800);
 }
 
 function onProgress(p) {
@@ -737,9 +753,31 @@ function onProgress(p) {
 }
 
 let renderFailures = 0;
+let frameNo = 0;
+
+/* React occasionally recreates the mount node (its children list around the
+   canvas is dynamic) — adopt the fresh node and re-attach our layers */
+function reattachLayers() {
+  const m = document.getElementById('sl-fx-mount');
+  if (!m) { inView = false; return; }
+  if (renderer.domElement.parentElement !== m) {
+    mountEl = m;
+    m.appendChild(renderer.domElement);
+    m.style.opacity = currentFx === null && activeIdx === 6 ? '0' : '1';
+  }
+  if (veilEl && !veilEl.isConnected && m.parentElement) m.parentElement.appendChild(veilEl);
+}
 
 function animate() {
-  if (!running || !inView) return;
+  frameNo++;
+  if (frameNo % 15 === 0) {
+    reattachLayers();
+    if (mountEl && mountEl.isConnected) {
+      const r = mountEl.getBoundingClientRect();
+      inView = r.bottom > 40 && r.top < window.innerHeight - 40;
+    }
+  }
+  if (!running || !inView || document.hidden) return;
   try {
     animateInner();
     renderFailures = 0;
@@ -792,17 +830,21 @@ async function rebuildWithWebGL() {
 }
 
 function animateInner() {
+  window.__fxFrames = (window.__fxFrames || 0) + 1;
   const now = performance.now();
   const dt = Math.min((now - lastTime) / 1000, 1 / 30);
   lastTime = now;
 
-  /* mirror the DOM hero-bottle motion */
+  /* mirror the DOM hero-bottle motion (smaller & higher on narrow screens) */
+  const narrow = camera.aspect < 0.72;
+  const baseS = narrow ? 0.64 : 0.94;
+  const baseY = narrow ? 0.46 : 0.02;
   const rot = Math.sin(progress * 1.9) * 1.6 * (Math.PI / 180);
   const dy = Math.sin(progress * 2.6) * 0.06;
-  const s = 0.94 * (1 + Math.sin(progress * 1.3) * 0.02);
+  const s = baseS * (1 + Math.sin(progress * 1.3) * 0.02);
   bottleGroup.rotation.z = rot;
   bottleGroup.rotation.y = Math.sin(now * 0.00013) * 0.38;
-  bottleGroup.position.y = 0.02 - dy;
+  bottleGroup.position.y = baseY - dy;
   bottleGroup.scale.setScalar(s);
 
   if (bottleLiquidMat) {
@@ -904,13 +946,24 @@ async function init() {
   };
   window.addEventListener('resize', onResize);
 
-  const io = new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; });
-  io.observe(mountEl);
-  document.addEventListener('visibilitychange', () => { inView = !document.hidden && inView; });
+  /* visibility is recomputed from live geometry inside the render loop —
+     IntersectionObserver misreports for sticky subtrees and dies with
+     React-recreated nodes */
 
   running = true;
   lastTime = performance.now();
   renderer.setAnimationLoop(animate);
+  window.__fxDebug = {
+    get state() {
+      return {
+        activeIdx, pendingIdx, running, inView, frames: window.__fxFrames || 0,
+        failures: renderFailures,
+        fx: currentFx ? Object.keys(effects).find(k => effects[k] === currentFx) : null,
+        groups: Object.keys(effects).map(k => k + ':' + (effects[k].group.visible ? 'v' : 'h')).join(','),
+        exposure: renderer.toneMappingExposure,
+      };
+    },
+  };
   console.info('[fx] backgrounds live —', isWebGPU ? 'WebGPU' : 'WebGL2 fallback');
 }
 

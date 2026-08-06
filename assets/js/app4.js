@@ -639,7 +639,7 @@ function Wordmark({
       opacity: 0.66,
       marginLeft: '0.4em'
     }
-  }, "Miami"));
+  }, "West Palm Beach"));
 }
 Object.assign(__ds_scope, { Wordmark });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Wordmark.jsx", error: String((e && e.message) || e) }); }

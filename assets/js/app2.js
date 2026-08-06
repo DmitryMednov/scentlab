@@ -31,14 +31,11 @@ function Experience() {
       <div style={{ display:'flex', flexDirection:'column', gap:'var(--space-2xl)' }}>
         <SectionHeading eyebrow="Tijon · West Palm Beach" title={<>A team experience<br /><i>they'll actually remember.</i></>}
           lede="A luxury fragrance workshop that doubles as the best team building you've booked — one shared brief, a working perfumer, and every guest walks out with a bottle of their own unique perfume: blended by them, named by them, labeled my perfume." />
-        <div style={{ display:'flex', gap:'var(--space-xl)', flexWrap:'wrap', alignItems:'stretch' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:'var(--space-xl)', alignItems:'stretch' }}>
           <StatBlock value="90 min" label="Guided master class" />
-          <Divider vertical />
           <StatBlock value="8–40" label="Guests per session" />
-          <Divider vertical />
           <StatBlock value="12" label="Raw materials" />
-          <Divider vertical />
-          <StatBlock value="50 ml" label="Take-home bottle" />
+          <StatBlock value="50 ml" label="Your own perfume" />
         </div>
         <Divider />
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:'var(--space-xl)' }}>
