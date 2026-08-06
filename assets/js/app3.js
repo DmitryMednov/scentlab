@@ -10,6 +10,7 @@ const __DSJ = (n) => (props) => React.createElement((window.ScentLabDesignSystem
 const Eyebrow = __DSJ('Eyebrow'), Button = __DSJ('Button'), SceneProgress = __DSJ('SceneProgress');
 const IB = '../../assets/icons';
 const R = () => window.__resources || {};
+const BOOKING_URL = 'https://tijon.com/pages/class-sign-up-west-palm-beach?utm_source=ig&utm_medium=social&utm_content=link_in_bio';
 
 const SCENES = [
   { id:'origin', label:'Origin', title:'A clean beginning', feelings:['Freshness.','Purity.','Anticipation.'], img:'scene1', pos:'100% 22%', zoom:2.0, light:true,
@@ -116,7 +117,7 @@ function Scene({ scene, index, progress, mode }) {
           </div>
           <div style={{ display:'flex', gap:'var(--space-sm)', marginTop:'var(--space-sm)', flexWrap:'wrap',
             opacity: active ? 1 : 0, transition:'opacity var(--dur-slow) var(--ease-out) 300ms' }}>
-            <Button variant="primary" size={index === 0 ? 'lg' : 'md'} icon="arrow-right" iconBase={IB} onClick={() => window.scrollTo({ top: document.getElementById('booking').offsetTop, behavior:'smooth' })}>Book a workshop</Button>
+            <Button variant="primary" size={index === 0 ? 'lg' : 'md'} icon="arrow-right" iconBase={IB} href={BOOKING_URL} target="_blank" rel="noopener">Book a team session</Button>
             {index === 0 && <Button variant="quiet" size="lg" iconBase={IB} onClick={() => window.scrollTo({ top: window.innerHeight * 1.3, behavior:'smooth' })}>Learn more</Button>}
           </div>
           {index === 6 && (
@@ -163,13 +164,15 @@ function HeroBottle({ progress }) {
         <img src={R().bottle} alt="" data-sl-bottle="" style={{ position:'relative', height:'100%', width:'auto', display:'block', filter:'drop-shadow(0 44px 54px rgba(10,8,5,.45))' }} />
         <img src={R().bottle} alt="" data-sl-bottle="" style={{ position:'absolute', inset:0, height:'100%', width:'auto', mixBlendMode:'screen', opacity:.24,
           filter:scene.tint, transition:'filter var(--dur-scene) var(--ease-in-out)' }} />
-        <div style={{ position:'absolute', left:'50%', top:'58%', transform:'translateX(-50%)', textAlign:'center', whiteSpace:'nowrap',
-          fontFamily:'var(--font-display)', fontWeight:300, fontSize:'2.6vh', letterSpacing:'.14em',
+        <div style={{ position:'absolute', left:'50%', top:'56%', transform:'translateX(-50%)', textAlign:'center', whiteSpace:'nowrap',
+          fontFamily:'var(--font-display)', fontWeight:300, fontSize:'2.6vh', letterSpacing:'.3em',
           color: scene.light ? 'rgba(74,58,32,.78)' : 'rgba(252,250,246,.94)',
           textShadow: scene.light ? 'none' : '0 0 1px rgba(80,60,30,.9), 0 1px 3px rgba(40,30,15,.45)',
           transition:'color var(--dur-scene) var(--ease-in-out)' }}>
-          Scent <i>Lab</i>
-          <div style={{ fontFamily:'var(--font-text)', fontSize:'.9vh', fontWeight:500, letterSpacing:'.4em', textTransform:'uppercase', marginTop:'.8vh', opacity:.8 }}>Eau de parfum · Miami</div>
+          TIJON
+          <div style={{ fontFamily:'var(--font-text)', fontSize:'.9vh', fontWeight:500, letterSpacing:'.4em', textTransform:'uppercase', marginTop:'.8vh', opacity:.8 }}>Eau de parfum · West Palm Beach</div>
+          <div style={{ display:'inline-block', marginTop:'1.6vh', padding:'.5vh 1.6vh', border:'1px solid currentColor', borderRadius:2, opacity:.85,
+            fontFamily:'var(--font-display)', fontStyle:'italic', fontWeight:300, fontSize:'1.7vh', letterSpacing:'.06em', textTransform:'none' }}>my perfume</div>
         </div>
       </div>
       <div style={{ position:'absolute', left:'50%', bottom:'-7vh', transform:'translateX(-50%)', width:'34vh', height:'5vh', borderRadius:'50%',
@@ -189,22 +192,39 @@ function Journey({ onProgress, mode = 'sweep', grain = true }) {
       window.dispatchEvent(new CustomEvent('sl:progress', { detail: dbg }));
       return;
     }
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const el = wrapRef.current; if (!el) return;
-        const runway = el.offsetHeight - window.innerHeight;
-        const p = clamp((-el.getBoundingClientRect().top) / (runway / SCENES.length), 0, SCENES.length - 1);
-        setProgress(p);
-        onProgress?.(p);
-        window.__SL2.__journeyProgress = p;
-        window.dispatchEvent(new CustomEvent('sl:progress', { detail: p }));
-      });
+    /* smoothed, snapping progress: raw scroll is eased every frame so the type
+       never jitters, and after the wheel settles the runway snaps to the
+       nearest whole scene — no stopping mid-transition. */
+    let raf = 0, snapT = 0, cur = NaN;
+    const compute = () => {
+      const el = wrapRef.current; if (!el) return 0;
+      const runway = el.offsetHeight - window.innerHeight;
+      return clamp((-el.getBoundingClientRect().top) / (runway / SCENES.length), 0, SCENES.length - 1);
     };
+    const tick = () => {
+      const target = compute();
+      if (isNaN(cur)) cur = target;
+      cur += (target - cur) * 0.16;
+      if (Math.abs(target - cur) < 0.002) cur = target;
+      setProgress((prev) => (prev === cur ? prev : cur));
+      onProgress?.(cur);
+      window.__SL2.__journeyProgress = cur;
+      window.dispatchEvent(new CustomEvent('sl:progress', { detail: cur }));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const snap = () => {
+      const el = wrapRef.current; if (!el) return;
+      const p = compute();
+      if (p <= 0.02 || p >= SCENES.length - 1.02) return;
+      const nearest = Math.round(p);
+      if (Math.abs(p - nearest) < 0.02) return;
+      const runway = el.offsetHeight - window.innerHeight;
+      window.scrollTo({ top: el.offsetTop + (runway / SCENES.length) * nearest, behavior:'smooth' });
+    };
+    const onScroll = () => { clearTimeout(snapT); snapT = setTimeout(snap, 170); };
     window.addEventListener('scroll', onScroll, { passive:true });
-    onScroll();
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); clearTimeout(snapT); };
   }, []);
   const active = clamp(Math.round(progress), 0, 6);
   const goTo = (i) => {

@@ -35,6 +35,19 @@ const VEIL_GRADS = [
 ];
 
 let renderer, scene, camera, bgGroup, bottleGroup, veilEl, mountEl;
+let bottleLiquidMat = null;
+
+/* per-scene liquid tint — every slide presents a different fragrance */
+const LIQUID_COLORS = [
+  0x9FBE8E, // origin — vetiver green
+  0xB5763A, // warmth — amber
+  0xD9A441, // spark — golden citrus
+  0x6FAFB8, // flow — marine aqua
+  0xB0442E, // heat — spiced rouge
+  0xE4D3AC, // air — pale champagne
+  0xC79E5A, // arrival — the classic blend
+];
+const liquidTarget = new THREE.Color(LIQUID_COLORS[0]);
 let isWebGPU = false;
 let activeIdx = -1, pendingIdx = -1, veilT = -1;
 let progress = 0, running = false, inView = true;
@@ -632,28 +645,26 @@ function buildBottle(group) {
     attenuationDistance: 2.4,
     roughness: 0.05,
     metalness: 0,
-    dispersion: 0.18,
     color: 0xffffff,
-    side: THREE.DoubleSide,
   });
 
   const body = new THREE.Mesh(new RoundedBoxGeometry(W, H, D, 3, R), glassMat);
   body.position.y = 0;
   group.add(body);
 
+  /* liquid: simple tinted body (no nested transmission — stacked refractive
+     shells read as ghost layers), recolored per scene in animate() */
   const liquidMat = new THREE.MeshPhysicalNodeMaterial({
-    transmission: 0.55,
-    ior: 1.33,
-    thickness: 0.6,
-    roughness: 0.3,
+    transparent: true,
+    opacity: 0.82,
+    roughness: 0.38,
     metalness: 0,
     color: 0xC79E5A,
-    attenuationColor: new THREE.Color(0x9A6E2C),
-    attenuationDistance: 0.5,
   });
-  const liquid = new THREE.Mesh(new RoundedBoxGeometry(W * 0.86, H * 0.6, D * 0.7, 2, R * 0.7), liquidMat);
-  liquid.position.y = -H * 0.17;
+  const liquid = new THREE.Mesh(new RoundedBoxGeometry(W * 0.78, H * 0.58, D * 0.55, 2, R * 0.6), liquidMat);
+  liquid.position.y = -H * 0.18;
   group.add(liquid);
+  bottleLiquidMat = liquidMat;
 
   const goldMat = new THREE.MeshStandardNodeMaterial({ color: 0xB8873B, metalness: 1.0, roughness: 0.32 });
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.1, 24), goldMat);
@@ -793,6 +804,12 @@ function animateInner() {
   bottleGroup.rotation.y = Math.sin(now * 0.00013) * 0.38;
   bottleGroup.position.y = 0.02 - dy;
   bottleGroup.scale.setScalar(s);
+
+  if (bottleLiquidMat) {
+    const idx = Math.max(0, Math.min(6, Math.round(progress)));
+    liquidTarget.setHex(LIQUID_COLORS[idx]);
+    bottleLiquidMat.color.lerp(liquidTarget, Math.min(1, dt * 2.2));
+  }
 
   if (currentFx) {
     if (currentFx.cfg.update) currentFx.cfg.update(dt);
