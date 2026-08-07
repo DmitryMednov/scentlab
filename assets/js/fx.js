@@ -38,6 +38,7 @@ let renderer, scene, camera, bgGroup, bottleGroup, veilEl, mountEl;
 let bottleLiquidMat = null;
 let bottleLiquidMesh = null;
 let fluidPlane = null;
+let fluidUvScale = null;
 
 /* per-scene liquid tint — every slide presents a different fragrance */
 const LIQUID_COLORS = [
@@ -90,10 +91,13 @@ const fbm = Fn(([p]) => {
 
 function buildFluid(group) {
   const mat = new THREE.MeshBasicNodeMaterial();
+  /* pattern density per WORLD unit, so the flow stays isotropic no matter
+     how the plane is sized to the split (a fixed uv scale squashes it) */
+  fluidUvScale = uniform(new THREE.Vector2(3.0, 2.0));
   mat.colorNode = Fn(() => {
     /* slow, unhurried drift */
     const t = time.mul(0.02);
-    const p = vec3(uv().mul(vec2(3.0, 2.0)), t);
+    const p = vec3(uv().mul(fluidUvScale), t);
 
     /* two rounds of domain warping = advected, self-folding flow */
     const w1 = vec3(fbm(p), fbm(p.add(vec3(5.2, 1.3, 2.1))), 0);
@@ -671,10 +675,11 @@ function buildBottle(group) {
   /* opaque: three's transmission pass only refracts opaque geometry, so a
      transparent liquid would vanish behind the glass */
   const liquidMat = new THREE.MeshPhysicalNodeMaterial({
-    roughness: 0.16,
+    roughness: 0.12,
     metalness: 0,
-    clearcoat: 0.9,
-    clearcoatRoughness: 0.14,
+    color: 0xffffff,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1,
     transparent: true,
   });
   /* the liquid alpha-blends in the transparent pass, after the glass — the
@@ -682,11 +687,10 @@ function buildBottle(group) {
      face (three's transmission pass only refracts opaque geometry, so the
      liquid can't live inside the refraction path at all) */
   glassMat.depthWrite = false;
-  /* water in the spirit of webgl-water (jeantimex/threejs-water): a rippled
-     heightfield top surface with exact analytic normals (the sines are the
-     heightfield, their cosines the derivatives), a depth-graded body color
-     and a drifting caustic web. Full ray-traced caustics need a pool-sized
-     scene; at flacon scale these three cues carry the look. */
+  /* fully clear water: no body tint at all — the read comes from the rippled
+     heightfield surface (exact analytic normals: the sines are the height,
+     their cosines the derivatives) catching specular light. Body walls are a
+     whisper of alpha so the fill level stays legible from the side. */
   const LW = W * 0.88, LH = H * 0.52, LD = D * 0.75;
   {
     const px = positionLocal.x, pz = positionLocal.z;
@@ -704,17 +708,12 @@ function buildBottle(group) {
     const topFace = smoothstep(float(0.55), float(0.9), normalLocal.y);
     liquidMat.normalNode = transformNormalToView(mix(normalLocal, waveN, topFace).normalize());
 
-    const depth = smoothstep(float(-LH * 0.5), float(LH * 0.55), positionLocal.y);
-    const deepCol = vec3(0.55, 0.34, 0.10);
-    const shalCol = vec3(0.93, 0.72, 0.36);
-    const caust = snoise(vec3(px.mul(9.0), pz.mul(9.0).add(positionLocal.y.mul(6.0)), time.mul(0.55)));
-    const web = smoothstep(float(0.35), float(0.85), caust).mul(0.12).mul(depth);
-    liquidMat.colorNode = mix(deepCol, shalCol, depth).add(vec3(1.0, 0.85, 0.55).mul(web));
-    /* translucency: denser toward the bottom, airy at the surface */
-    liquidMat.opacityNode = mix(float(0.82), float(0.5), depth);
+    liquidMat.opacityNode = mix(float(0.08), float(0.34), topFace);
   }
   const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
-  liquid.position.y = -H * 0.16;
+  /* sit the water on the bottom of the glass — a floating slab with an empty
+     band underneath reads as a bug */
+  liquid.position.y = -H * 0.22;
   group.add(liquid);
   bottleLiquidMat = liquidMat;
   bottleLiquidMesh = liquid;
@@ -905,8 +904,11 @@ function animateInner() {
     const halfW5 = halfH5 * camera.aspect;
     const bottomY = (1 - 2 * split) * halfH5;
     const topY = halfH5 * 1.03;
-    fluidPlane.scale.set(2 * halfW5 * 1.05, topY - bottomY, 1);
+    const pw = 2 * halfW5 * 1.05, phh = topY - bottomY;
+    fluidPlane.scale.set(pw, phh, 1);
     fluidPlane.position.y = (topY + bottomY) / 2;
+    /* ~0.26 pattern repeats per world unit = the original full-screen density */
+    if (fluidUvScale) fluidUvScale.value.set(pw * 0.26, phh * 0.26);
   }
   const t = now * 0.001;
   bottleGroup.rotation.z = Math.sin(t * 1.1) * 2.6 * (Math.PI / 180);
@@ -919,7 +921,7 @@ function animateInner() {
   if (bottleLiquidMesh) {
     bottleLiquidMesh.rotation.z = Math.sin(t * 1.1 - 0.9) * 2.6 * (Math.PI / 180);
     bottleLiquidMesh.rotation.x = Math.sin(t * 1.35 - 0.5) * 1.4 * (Math.PI / 180);
-    bottleLiquidMesh.position.y = -2.6 * 0.16 + Math.sin(t * 1.5 - 1.1) * 0.035;
+    bottleLiquidMesh.position.y = -2.6 * 0.22 + Math.sin(t * 1.5 - 1.1) * 0.02;
   }
 
   if (currentFx) {
