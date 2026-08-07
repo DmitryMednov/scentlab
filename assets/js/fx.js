@@ -691,7 +691,9 @@ function buildBottle(group) {
      heightfield surface (exact analytic normals: the sines are the height,
      their cosines the derivatives) catching specular light. Body walls are a
      whisper of alpha so the fill level stays legible from the side. */
-  const LW = W * 0.88, LH = H * 0.52, LD = D * 0.75;
+  /* nearly flush with the walls: a visible side gap makes the water read as
+     a floating slab whose volume "jumps" as the bottle turns */
+  const LW = W * 0.94, LH = H * 0.52, LD = D * 0.85;
   {
     const px = positionLocal.x, pz = positionLocal.z;
     const A1 = 0.020, K1 = 9.0, A2 = 0.014, K2 = 13.0, A3 = 0.011, K3 = 5.0, K3z = 6.0;
@@ -708,7 +710,9 @@ function buildBottle(group) {
     const topFace = smoothstep(float(0.55), float(0.9), normalLocal.y);
     liquidMat.normalNode = transformNormalToView(mix(normalLocal, waveN, topFace).normalize());
 
-    liquidMat.opacityNode = mix(float(0.08), float(0.34), topFace);
+    /* a whisper of champagne so the water is visible, still fully clear */
+    liquidMat.colorNode = vec3(0.95, 0.82, 0.56);
+    liquidMat.opacityNode = mix(float(0.16), float(0.42), topFace);
   }
   const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
   /* sit the water on the bottom of the glass — a floating slab with an empty
@@ -912,16 +916,17 @@ function animateInner() {
   }
   const t = now * 0.001;
   bottleGroup.rotation.z = Math.sin(t * 1.1) * 2.6 * (Math.PI / 180);
-  bottleGroup.rotation.y = Math.sin(t * 0.42) * 0.5;
+  /* keep the yaw gentle — wide swings change the water's projected volume */
+  bottleGroup.rotation.y = Math.sin(t * 0.42) * 0.14;
   bottleGroup.position.x = baseX;
   bottleGroup.position.y = baseY + Math.sin(t * 1.5) * 0.05;
   bottleGroup.scale.setScalar(baseS * (1 + Math.sin(t * 0.8) * 0.012));
 
   /* liquid slosh: lags the bottle tilt and breathes against it */
   if (bottleLiquidMesh) {
-    bottleLiquidMesh.rotation.z = Math.sin(t * 1.1 - 0.9) * 2.6 * (Math.PI / 180);
-    bottleLiquidMesh.rotation.x = Math.sin(t * 1.35 - 0.5) * 1.4 * (Math.PI / 180);
-    bottleLiquidMesh.position.y = -2.6 * 0.22 + Math.sin(t * 1.5 - 1.1) * 0.02;
+    bottleLiquidMesh.rotation.z = Math.sin(t * 1.1 - 0.9) * 1.5 * (Math.PI / 180);
+    bottleLiquidMesh.rotation.x = Math.sin(t * 1.35 - 0.5) * 1.0 * (Math.PI / 180);
+    bottleLiquidMesh.position.y = -2.6 * 0.22; /* the level itself must not drift */
   }
 
   if (currentFx) {
