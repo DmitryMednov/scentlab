@@ -655,15 +655,19 @@ function buildBottle(group) {
      liquid fill ~62%, brushed gold cap */
   const H = 2.6, W = 0.86, D = 0.44, R = 0.07;
 
+  /* white frosted glass — milky, glossy, clearly present on any ground;
+     the champagne water reads against it from inside */
   const glassMat = new THREE.MeshPhysicalNodeMaterial({
-    transmission: 1.0,          // KHR_materials_transmission: transmissionFactor
-    ior: 1.5,                   // KHR_materials_ior
-    thickness: 0.35,            // KHR_materials_volume: thicknessFactor
-    attenuationColor: new THREE.Color(0xEBD8B4),
-    attenuationDistance: 2.4,
-    roughness: 0.05,
+    transmission: 0.7,          // KHR_materials_transmission: transmissionFactor
+    ior: 1.45,                  // KHR_materials_ior
+    thickness: 0.5,             // KHR_materials_volume: thicknessFactor
+    attenuationColor: new THREE.Color(0xF2ECE0),
+    attenuationDistance: 1.2,
+    roughness: 0.42,
     metalness: 0,
     color: 0xffffff,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.12,
   });
 
   const body = new THREE.Mesh(new RoundedBoxGeometry(W, H, D, 3, R), glassMat);
@@ -710,9 +714,12 @@ function buildBottle(group) {
     const topFace = smoothstep(float(0.55), float(0.9), normalLocal.y);
     liquidMat.normalNode = transformNormalToView(mix(normalLocal, waveN, topFace).normalize());
 
-    /* a whisper of champagne so the water is visible, still fully clear */
-    liquidMat.colorNode = vec3(0.95, 0.82, 0.56);
-    liquidMat.opacityNode = mix(float(0.16), float(0.42), topFace);
+    /* amber, sitting between the two grounds in tone: lighter than the sea
+       backdrop, darker than the bone panel — so the SAME body of water stays
+       visible across the seam. A pale near-panel tint vanished against the
+       panel and made the visible volume "jump" with every sway. */
+    liquidMat.colorNode = vec3(0.82, 0.58, 0.22);
+    liquidMat.opacityNode = mix(float(0.45), float(0.66), topFace);
   }
   const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
   /* sit the water on the bottom of the glass — a floating slab with an empty
