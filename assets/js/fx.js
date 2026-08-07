@@ -706,10 +706,10 @@ function buildBottle(group) {
     const topFace = smoothstep(float(0.55), float(0.9), normalLocal.y);
     liquidMat.normalNode = transformNormalToView(mix(normalLocal, waveN, topFace).normalize());
 
-    /* light champagne, a touch deeper toward the base — one smooth ramp
-       across the whole height, no mid-body banding */
+    /* rosé champagne — dusty rose deepening toward the base, one smooth
+       ramp across the whole height, no mid-body banding */
     const dgrad = smoothstep(float(-LH * 0.5), float(LH * 0.5), positionLocal.y);
-    liquidMat.colorNode = mix(vec3(0.68, 0.48, 0.17), vec3(0.90, 0.72, 0.34), dgrad);
+    liquidMat.colorNode = mix(vec3(0.60, 0.30, 0.27), vec3(0.93, 0.66, 0.58), dgrad);
   }
   const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
   /* sit the water on the bottom of the glass — a floating slab with an empty
