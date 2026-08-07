@@ -675,7 +675,13 @@ function buildBottle(group) {
     metalness: 0,
     clearcoat: 0.9,
     clearcoatRoughness: 0.14,
+    transparent: true,
   });
+  /* the liquid alpha-blends in the transparent pass, after the glass — the
+     glass must not write depth or it would cull the liquid behind its front
+     face (three's transmission pass only refracts opaque geometry, so the
+     liquid can't live inside the refraction path at all) */
+  glassMat.depthWrite = false;
   /* water in the spirit of webgl-water (jeantimex/threejs-water): a rippled
      heightfield top surface with exact analytic normals (the sines are the
      heightfield, their cosines the derivatives), a depth-graded body color
@@ -699,11 +705,13 @@ function buildBottle(group) {
     liquidMat.normalNode = transformNormalToView(mix(normalLocal, waveN, topFace).normalize());
 
     const depth = smoothstep(float(-LH * 0.5), float(LH * 0.55), positionLocal.y);
-    const deepCol = vec3(0.34, 0.20, 0.06);
-    const shalCol = vec3(0.84, 0.60, 0.26);
+    const deepCol = vec3(0.55, 0.34, 0.10);
+    const shalCol = vec3(0.93, 0.72, 0.36);
     const caust = snoise(vec3(px.mul(9.0), pz.mul(9.0).add(positionLocal.y.mul(6.0)), time.mul(0.55)));
-    const web = smoothstep(float(0.35), float(0.85), caust).mul(0.20).mul(depth);
+    const web = smoothstep(float(0.35), float(0.85), caust).mul(0.12).mul(depth);
     liquidMat.colorNode = mix(deepCol, shalCol, depth).add(vec3(1.0, 0.85, 0.55).mul(web));
+    /* translucency: denser toward the bottom, airy at the surface */
+    liquidMat.opacityNode = mix(float(0.82), float(0.5), depth);
   }
   const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
   liquid.position.y = -H * 0.16;
@@ -715,9 +723,9 @@ function buildBottle(group) {
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.1, 24), goldMat);
   neck.position.y = H / 2 + 0.05;
   group.add(neck);
-  /* round cap: a gold capsule — cylindrical shaft, domed crown */
-  const cap = new THREE.Mesh(new THREE.CapsuleGeometry(0.175, 0.18, 12, 48), goldMat);
-  cap.position.y = H / 2 + 0.3;
+  /* round cap: a gold cylinder — circular in plan, flat on top */
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, 0.42, 48), goldMat);
+  cap.position.y = H / 2 + 0.31;
   group.add(cap);
 
   group.position.y = 0.02; /* bottle center sits near 47% viewport height */
@@ -887,9 +895,9 @@ function animateInner() {
   const split = 0.50;                               /* animated share, from the top */
   const halfH0 = 6.7 * Math.tan((35 * Math.PI / 180) / 2);
   const lineY = (1 - 2 * split) * halfH0;           /* seam in world units at z=0 */
-  const baseS = narrow ? 0.56 : 0.72;
+  const baseS = narrow ? 0.62 : 0.79;
   const baseX = 0;
-  const dip = narrow ? 0.22 : 0.30;                 /* how far the glass reaches below the seam */
+  const dip = narrow ? 0.26 : 0.55;                 /* how far the glass reaches below the seam */
   const baseY = lineY + 1.3 * baseS - dip;
 
   if (fluidPlane) {
@@ -904,8 +912,8 @@ function animateInner() {
   bottleGroup.rotation.z = Math.sin(t * 1.1) * 2.6 * (Math.PI / 180);
   bottleGroup.rotation.y = Math.sin(t * 0.42) * 0.5;
   bottleGroup.position.x = baseX;
-  bottleGroup.position.y = baseY + Math.sin(t * 1.5) * 0.075;
-  bottleGroup.scale.setScalar(baseS * (1 + Math.sin(t * 0.8) * 0.018));
+  bottleGroup.position.y = baseY + Math.sin(t * 1.5) * 0.05;
+  bottleGroup.scale.setScalar(baseS * (1 + Math.sin(t * 0.8) * 0.012));
 
   /* liquid slosh: lags the bottle tilt and breathes against it */
   if (bottleLiquidMesh) {
