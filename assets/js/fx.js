@@ -37,6 +37,7 @@ const VEIL_GRADS = [
 let renderer, scene, camera, bgGroup, bottleGroup, veilEl, mountEl;
 let bottleLiquidMat = null;
 let bottleLiquidMesh = null;
+let fluidPlane = null;
 
 /* per-scene liquid tint — every slide presents a different fragrance */
 const LIQUID_COLORS = [
@@ -130,9 +131,10 @@ function buildFluid(group) {
     return c;
   })();
 
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(26, 15), mat);
-  plane.position.set(0, 0.4, -5);
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  plane.position.set(0, 0, -5);
   group.add(plane);
+  fluidPlane = plane; /* sized every frame to cover only the top split */
   return { exposure: 1.0, toneMapping: THREE.ACESFilmicToneMapping };
 }
 
@@ -669,13 +671,23 @@ function buildBottle(group) {
   /* opaque: three's transmission pass only refracts opaque geometry, so a
      transparent liquid would vanish behind the glass */
   const liquidMat = new THREE.MeshPhysicalNodeMaterial({
-    roughness: 0.28,
+    roughness: 0.22,
     metalness: 0,
     color: 0xB07F35,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.3,
+    clearcoat: 0.75,
+    clearcoatRoughness: 0.22,
   });
-  const liquid = new THREE.Mesh(new RoundedBoxGeometry(W * 0.72, H * 0.56, D * 0.46, 2, R * 0.6), liquidMat);
+  /* rolling surface wave, strongest near the top, fading to still at the base */
+  const LW = W * 0.88, LH = H * 0.52, LD = D * 0.75;
+  {
+    const topness = smoothstep(float(LH * 0.02), float(LH * 0.5), positionLocal.y);
+    const wave = sin(positionLocal.x.mul(9.0).add(time.mul(2.4)))
+      .mul(0.030)
+      .add(sin(positionLocal.z.mul(13.0).sub(time.mul(1.7))).mul(0.020))
+      .add(sin(positionLocal.x.mul(4.0).add(positionLocal.z.mul(5.0)).add(time.mul(1.1))).mul(0.016));
+    liquidMat.positionNode = positionLocal.add(vec3(0, wave.mul(topness), 0));
+  }
+  const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
   liquid.position.y = -H * 0.16;
   group.add(liquid);
   bottleLiquidMat = liquidMat;
@@ -814,7 +826,7 @@ async function rebuildWithWebGL() {
   currentFx = null; bloomPipeline = null; activeIdx = -1; pendingIdx = -1;
   while (bgGroup.children.length) bgGroup.remove(bgGroup.children[0]);
   try {
-    renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: true });
+    renderer = new THREE.WebGPURenderer({ antialias: true, alpha: true, forceWebGL: true });
     await renderer.init();
   } catch (e) {
     console.warn('[fx] WebGL rebuild failed — DOM art direction restored', e);
@@ -850,14 +862,25 @@ function animateInner() {
   const dt = Math.min((now - lastTime) / 1000, 1 / 30);
   lastTime = now;
 
-  /* poster layout: bottle centered in the animated 70% (right of the solid
-     panel on desktop, above it on mobile), with a livelier float */
+  /* poster layout: horizontal split — the fluid fills the top 70% (56% on
+     narrow screens) and the bottle stands astride the seam, glass over
+     both grounds */
   const narrow = camera.aspect < 0.9;
-  const viewH = 2 * 6.7 * Math.tan((35 * Math.PI / 180) / 2);
-  const viewW = viewH * camera.aspect;
+  const split = narrow ? 0.56 : 0.70;               /* animated share, from the top */
+  const halfH0 = 6.7 * Math.tan((35 * Math.PI / 180) / 2);
+  const lineY = (1 - 2 * split) * halfH0;           /* seam in world units at z=0 */
   const baseS = narrow ? 0.56 : 0.9;
-  const baseX = narrow ? 0 : viewW * 0.15;   /* 65% of viewport = panel 30% + half of 70% */
-  const baseY = narrow ? viewH * 0.2 : 0.02; /* mobile: bottle rides the top 56% */
+  const baseX = 0;
+  const baseY = lineY + 1.3 * baseS - 0.19;         /* bottle dips just past the seam */
+
+  if (fluidPlane) {
+    const halfH5 = (6.7 + 5) * Math.tan((35 * Math.PI / 180) / 2);
+    const halfW5 = halfH5 * camera.aspect;
+    const bottomY = (1 - 2 * split) * halfH5;
+    const topY = halfH5 * 1.03;
+    fluidPlane.scale.set(2 * halfW5 * 1.05, topY - bottomY, 1);
+    fluidPlane.position.y = (topY + bottomY) / 2;
+  }
   const t = now * 0.001;
   bottleGroup.rotation.z = Math.sin(t * 1.1) * 2.6 * (Math.PI / 180);
   bottleGroup.rotation.y = Math.sin(t * 0.42) * 0.5;
@@ -867,10 +890,9 @@ function animateInner() {
 
   /* liquid slosh: lags the bottle tilt and breathes against it */
   if (bottleLiquidMesh) {
-    bottleLiquidMesh.rotation.z = Math.sin(t * 1.1 - 0.9) * 4.4 * (Math.PI / 180);
-    bottleLiquidMesh.rotation.x = Math.sin(t * 1.35 - 0.5) * 2.2 * (Math.PI / 180);
-    bottleLiquidMesh.position.y = -2.6 * 0.18 + Math.sin(t * 1.5 - 1.1) * 0.035;
-    bottleLiquidMesh.scale.y = 1 + Math.sin(t * 2.1) * 0.035;
+    bottleLiquidMesh.rotation.z = Math.sin(t * 1.1 - 0.9) * 2.6 * (Math.PI / 180);
+    bottleLiquidMesh.rotation.x = Math.sin(t * 1.35 - 0.5) * 1.4 * (Math.PI / 180);
+    bottleLiquidMesh.position.y = -2.6 * 0.16 + Math.sin(t * 1.5 - 1.1) * 0.035;
   }
 
   if (currentFx) {
@@ -908,7 +930,7 @@ async function init() {
   if (!mountEl) return;
 
   try {
-    renderer = new THREE.WebGPURenderer({ antialias: true });
+    renderer = new THREE.WebGPURenderer({ antialias: true, alpha: true });
     await renderer.init();
   } catch (e) {
     console.warn('[fx] renderer init failed — DOM art direction stays', e);
