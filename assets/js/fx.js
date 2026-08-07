@@ -7,7 +7,7 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, uniform, uv, vec2, vec3, vec4, float, color, time, texture,
-  positionLocal, sin, cos, atan, min, max, mix, smoothstep, PI, TWO_PI,
+  positionLocal, normalLocal, transformNormalToView, sin, cos, atan, min, max, mix, smoothstep, PI, TWO_PI,
   luminance, parallaxUV, blendOverlay, normalMap, pass,
   texture3D, textureStore, storageTexture, instanceIndex, uvec3, storage,
   screenCoordinate, fract, frameId, interleavedGradientNoise,
@@ -671,21 +671,39 @@ function buildBottle(group) {
   /* opaque: three's transmission pass only refracts opaque geometry, so a
      transparent liquid would vanish behind the glass */
   const liquidMat = new THREE.MeshPhysicalNodeMaterial({
-    roughness: 0.22,
+    roughness: 0.16,
     metalness: 0,
-    color: 0xB07F35,
-    clearcoat: 0.75,
-    clearcoatRoughness: 0.22,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.14,
   });
-  /* rolling surface wave, strongest near the top, fading to still at the base */
+  /* water in the spirit of webgl-water (jeantimex/threejs-water): a rippled
+     heightfield top surface with exact analytic normals (the sines are the
+     heightfield, their cosines the derivatives), a depth-graded body color
+     and a drifting caustic web. Full ray-traced caustics need a pool-sized
+     scene; at flacon scale these three cues carry the look. */
   const LW = W * 0.88, LH = H * 0.52, LD = D * 0.75;
   {
+    const px = positionLocal.x, pz = positionLocal.z;
+    const A1 = 0.020, K1 = 9.0, A2 = 0.014, K2 = 13.0, A3 = 0.011, K3 = 5.0, K3z = 6.0;
+    const p1 = px.mul(K1).add(time.mul(2.4));
+    const p2 = pz.mul(K2).sub(time.mul(1.7));
+    const p3 = px.mul(K3).add(pz.mul(K3z)).add(time.mul(1.1));
+    const f = sin(p1).mul(A1).add(sin(p2).mul(A2)).add(sin(p3).mul(A3));
     const topness = smoothstep(float(LH * 0.02), float(LH * 0.5), positionLocal.y);
-    const wave = sin(positionLocal.x.mul(9.0).add(time.mul(2.4)))
-      .mul(0.030)
-      .add(sin(positionLocal.z.mul(13.0).sub(time.mul(1.7))).mul(0.020))
-      .add(sin(positionLocal.x.mul(4.0).add(positionLocal.z.mul(5.0)).add(time.mul(1.1))).mul(0.016));
-    liquidMat.positionNode = positionLocal.add(vec3(0, wave.mul(topness), 0));
+    liquidMat.positionNode = positionLocal.add(vec3(0, f.mul(topness), 0));
+
+    const dfdx = cos(p1).mul(A1 * K1).add(cos(p3).mul(A3 * K3));
+    const dfdz = cos(p2).mul(A2 * K2).negate().add(cos(p3).mul(A3 * K3z));
+    const waveN = vec3(dfdx.negate(), 1.0, dfdz.negate()).normalize();
+    const topFace = smoothstep(float(0.55), float(0.9), normalLocal.y);
+    liquidMat.normalNode = transformNormalToView(mix(normalLocal, waveN, topFace).normalize());
+
+    const depth = smoothstep(float(-LH * 0.5), float(LH * 0.55), positionLocal.y);
+    const deepCol = vec3(0.34, 0.20, 0.06);
+    const shalCol = vec3(0.84, 0.60, 0.26);
+    const caust = snoise(vec3(px.mul(9.0), pz.mul(9.0).add(positionLocal.y.mul(6.0)), time.mul(0.55)));
+    const web = smoothstep(float(0.35), float(0.85), caust).mul(0.20).mul(depth);
+    liquidMat.colorNode = mix(deepCol, shalCol, depth).add(vec3(1.0, 0.85, 0.55).mul(web));
   }
   const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
   liquid.position.y = -H * 0.16;
@@ -697,8 +715,9 @@ function buildBottle(group) {
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.1, 24), goldMat);
   neck.position.y = H / 2 + 0.05;
   group.add(neck);
-  const cap = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.42, 0.3, 2, 0.05), goldMat);
-  cap.position.y = H / 2 + 0.31;
+  /* round cap: a gold capsule — cylindrical shaft, domed crown */
+  const cap = new THREE.Mesh(new THREE.CapsuleGeometry(0.175, 0.18, 12, 48), goldMat);
+  cap.position.y = H / 2 + 0.3;
   group.add(cap);
 
   group.position.y = 0.02; /* bottle center sits near 47% viewport height */
@@ -862,16 +881,16 @@ function animateInner() {
   const dt = Math.min((now - lastTime) / 1000, 1 / 30);
   lastTime = now;
 
-  /* poster layout: horizontal split — the fluid fills the top 70% (56% on
-     narrow screens) and the bottle stands astride the seam, glass over
-     both grounds */
+  /* poster layout: horizontal 50/50 split — the fluid fills the top half
+     and the bottle stands astride the seam, glass over both grounds */
   const narrow = camera.aspect < 0.9;
-  const split = narrow ? 0.56 : 0.70;               /* animated share, from the top */
+  const split = 0.50;                               /* animated share, from the top */
   const halfH0 = 6.7 * Math.tan((35 * Math.PI / 180) / 2);
   const lineY = (1 - 2 * split) * halfH0;           /* seam in world units at z=0 */
-  const baseS = narrow ? 0.56 : 0.9;
+  const baseS = narrow ? 0.56 : 0.72;
   const baseX = 0;
-  const baseY = lineY + 1.3 * baseS - 0.19;         /* bottle dips just past the seam */
+  const dip = narrow ? 0.22 : 0.30;                 /* how far the glass reaches below the seam */
+  const baseY = lineY + 1.3 * baseS - dip;
 
   if (fluidPlane) {
     const halfH5 = (6.7 + 5) * Math.tan((35 * Math.PI / 180) / 2);

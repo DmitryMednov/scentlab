@@ -1,7 +1,7 @@
 (() => {
-/* Single-screen poster, split horizontally: the top ~70% is the live fluid
-   canvas, the bottom ~30% a solid bone panel with the pitch. The flacon
-   stands astride the seam — glass over both grounds (the canvas is
+/* Single-screen poster, split horizontally 50/50: the top half is the live
+   fluid canvas, the bottom half a solid bone panel with the pitch. The
+   flacon stands astride the seam — glass over both grounds (the canvas is
    transparent and layered above the panel; clicks fall through). */
 const IB = '../../assets/icons';
 const R = () => window.__resources || {};
@@ -56,7 +56,7 @@ const GlassBtn = ({ gold, href, onClick, children }) => {
 /* fallback bottle (shown only when WebGL init fails) */
 function FallbackBottle({ narrow }) {
   return (
-    <div aria-hidden="true" data-sl-bottle="" style={{ position:'absolute', left:'50%', top: narrow ? '38%' : '42%', pointerEvents:'none',
+    <div aria-hidden="true" data-sl-bottle="" style={{ position:'absolute', left:'50%', top:'38%', pointerEvents:'none',
       transform:'translate(-50%,-50%)', zIndex:11 }}>
       <img src={R().bottle} alt="" style={{ position:'relative', height:narrow ? '34vh' : '50vh', width:'auto', display:'block',
         filter:'drop-shadow(0 44px 54px rgba(10,8,5,.45))' }} />
@@ -66,7 +66,7 @@ function FallbackBottle({ narrow }) {
 
 function Hero({ onLearnMore }) {
   const narrow = useNarrow();
-  const panelH = narrow ? '44%' : '30%';
+  const panelH = '50%';
 
   return (
     <section aria-label="Scent Lab — perfume-making team building" style={{ position:'relative', height:'100vh', overflow:'hidden', background:'var(--ink-900)' }}>
