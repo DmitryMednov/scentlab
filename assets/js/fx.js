@@ -36,6 +36,7 @@ const VEIL_GRADS = [
 
 let renderer, scene, camera, bgGroup, bottleGroup, veilEl, mountEl;
 let bottleLiquidMat = null;
+let bottleLiquidMesh = null;
 
 /* per-scene liquid tint — every slide presents a different fragrance */
 const LIQUID_COLORS = [
@@ -89,7 +90,8 @@ const fbm = Fn(([p]) => {
 function buildFluid(group) {
   const mat = new THREE.MeshBasicNodeMaterial();
   mat.colorNode = Fn(() => {
-    const t = time.mul(0.06);
+    /* slow, unhurried drift */
+    const t = time.mul(0.02);
     const p = vec3(uv().mul(vec2(3.0, 2.0)), t);
 
     /* two rounds of domain warping = advected, self-folding flow */
@@ -111,6 +113,16 @@ function buildFluid(group) {
     /* filament highlights along the warp shear */
     const shear = w1.sub(w2).length();
     c.addAssign(color('#E8F4E4').mul(smoothstep(0.9, 1.35, shear).mul(0.25)));
+
+    /* iridescent sheen — a slow pearl gradient folded through the flow */
+    const ph = f.mul(6.28318).add(time.mul(0.12)).add(uv().x.mul(2.5)).toVar();
+    const pearl = vec3(
+      sin(ph).mul(0.5).add(0.5),
+      sin(ph.add(2.094)).mul(0.5).add(0.5),
+      sin(ph.add(4.188)).mul(0.5).add(0.5),
+    );
+    const sheenMask = smoothstep(0.35, 0.75, f).mul(smoothstep(0.95, 0.55, f));
+    c.addAssign(pearl.mul(vec3(0.10, 0.07, 0.12)).mul(sheenMask));
 
     /* corner vignette keeps the type readable */
     const d = uv().sub(0.5).length();
@@ -654,17 +666,20 @@ function buildBottle(group) {
 
   /* liquid: simple tinted body (no nested transmission — stacked refractive
      shells read as ghost layers), recolored per scene in animate() */
+  /* opaque: three's transmission pass only refracts opaque geometry, so a
+     transparent liquid would vanish behind the glass */
   const liquidMat = new THREE.MeshPhysicalNodeMaterial({
-    transparent: true,
-    opacity: 0.82,
-    roughness: 0.38,
+    roughness: 0.28,
     metalness: 0,
-    color: 0xC79E5A,
+    color: 0xB07F35,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.3,
   });
-  const liquid = new THREE.Mesh(new RoundedBoxGeometry(W * 0.78, H * 0.58, D * 0.55, 2, R * 0.6), liquidMat);
-  liquid.position.y = -H * 0.18;
+  const liquid = new THREE.Mesh(new RoundedBoxGeometry(W * 0.72, H * 0.56, D * 0.46, 2, R * 0.6), liquidMat);
+  liquid.position.y = -H * 0.16;
   group.add(liquid);
   bottleLiquidMat = liquidMat;
+  bottleLiquidMesh = liquid;
 
   const goldMat = new THREE.MeshStandardNodeMaterial({ color: 0xB8873B, metalness: 1.0, roughness: 0.32 });
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.1, 24), goldMat);
@@ -835,22 +850,27 @@ function animateInner() {
   const dt = Math.min((now - lastTime) / 1000, 1 / 30);
   lastTime = now;
 
-  /* mirror the DOM hero-bottle motion (smaller & higher on narrow screens) */
-  const narrow = camera.aspect < 0.72;
-  const baseS = narrow ? 0.64 : 0.94;
-  const baseY = narrow ? 0.46 : 0.02;
-  const rot = Math.sin(progress * 1.9) * 1.6 * (Math.PI / 180);
-  const dy = Math.sin(progress * 2.6) * 0.06;
-  const s = baseS * (1 + Math.sin(progress * 1.3) * 0.02);
-  bottleGroup.rotation.z = rot;
-  bottleGroup.rotation.y = Math.sin(now * 0.00013) * 0.38;
-  bottleGroup.position.y = baseY - dy;
-  bottleGroup.scale.setScalar(s);
+  /* poster layout: bottle centered in the animated 70% (right of the solid
+     panel on desktop, above it on mobile), with a livelier float */
+  const narrow = camera.aspect < 0.9;
+  const viewH = 2 * 6.7 * Math.tan((35 * Math.PI / 180) / 2);
+  const viewW = viewH * camera.aspect;
+  const baseS = narrow ? 0.56 : 0.9;
+  const baseX = narrow ? 0 : viewW * 0.15;   /* 65% of viewport = panel 30% + half of 70% */
+  const baseY = narrow ? viewH * 0.2 : 0.02; /* mobile: bottle rides the top 56% */
+  const t = now * 0.001;
+  bottleGroup.rotation.z = Math.sin(t * 1.1) * 2.6 * (Math.PI / 180);
+  bottleGroup.rotation.y = Math.sin(t * 0.42) * 0.5;
+  bottleGroup.position.x = baseX;
+  bottleGroup.position.y = baseY + Math.sin(t * 1.5) * 0.075;
+  bottleGroup.scale.setScalar(baseS * (1 + Math.sin(t * 0.8) * 0.018));
 
-  if (bottleLiquidMat) {
-    const idx = Math.max(0, Math.min(6, Math.round(progress)));
-    liquidTarget.setHex(LIQUID_COLORS[idx]);
-    bottleLiquidMat.color.lerp(liquidTarget, Math.min(1, dt * 2.2));
+  /* liquid slosh: lags the bottle tilt and breathes against it */
+  if (bottleLiquidMesh) {
+    bottleLiquidMesh.rotation.z = Math.sin(t * 1.1 - 0.9) * 4.4 * (Math.PI / 180);
+    bottleLiquidMesh.rotation.x = Math.sin(t * 1.35 - 0.5) * 2.2 * (Math.PI / 180);
+    bottleLiquidMesh.position.y = -2.6 * 0.18 + Math.sin(t * 1.5 - 1.1) * 0.035;
+    bottleLiquidMesh.scale.y = 1 + Math.sin(t * 2.1) * 0.035;
   }
 
   if (currentFx) {
@@ -935,8 +955,10 @@ async function init() {
 
   document.body.classList.add('sl-fx-on');
 
-  window.addEventListener('sl:progress', (e) => onProgress(e.detail));
-  onProgress(window.__SL2 && window.__SL2.__journeyProgress || 0);
+  /* single-poster mode: the fluid environment is the one and only scene */
+  activateEffect(0);
+  activeIdx = 0;
+  pendingIdx = 0;
 
   const onResize = () => {
     const w = mountEl.clientWidth, h = mountEl.clientHeight;
