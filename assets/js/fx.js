@@ -105,11 +105,12 @@ function buildFluid(group) {
     const w2 = vec3(fbm(w2p), fbm(w2p.add(vec3(8.3, 2.8, 4.2))), 0);
     const f = fbm(p.add(w2.mul(2.2))).mul(0.5).add(0.5);
 
-    /* palette: abyss -> sea glass -> sage light (origin scene) */
-    const deep = color('#0C171B');
-    const mid = color('#2E4A52');
-    const glass = color('#7FB9AE');
-    const light = color('#C8E4C9');
+    /* palette: white pearl — soft grays folding into white, so the clear
+       flacon and its champagne water carry the color */
+    const deep = color('#B9C0BC');
+    const mid = color('#D6DBD5');
+    const glass = color('#EAEEE8');
+    const light = color('#FBFDFA');
 
     const c = mix(deep, mid, smoothstep(0.15, 0.5, f)).toVar();
     c.assign(mix(c, glass, smoothstep(0.5, 0.78, f)));
@@ -129,9 +130,9 @@ function buildFluid(group) {
     const sheenMask = smoothstep(0.35, 0.75, f).mul(smoothstep(0.95, 0.55, f));
     c.addAssign(pearl.mul(vec3(0.10, 0.07, 0.12)).mul(sheenMask));
 
-    /* corner vignette keeps the type readable */
+    /* corner vignette, gentle on the light ground */
     const d = uv().sub(0.5).length();
-    c.mulAssign(smoothstep(0.95, 0.35, d).mul(0.75).add(0.25));
+    c.mulAssign(smoothstep(0.95, 0.35, d).mul(0.22).add(0.78));
     return c;
   })();
 
@@ -655,19 +656,15 @@ function buildBottle(group) {
      liquid fill ~62%, brushed gold cap */
   const H = 2.6, W = 0.86, D = 0.44, R = 0.07;
 
-  /* white frosted glass — milky, glossy, clearly present on any ground;
-     the champagne water reads against it from inside */
   const glassMat = new THREE.MeshPhysicalNodeMaterial({
-    transmission: 0.7,          // KHR_materials_transmission: transmissionFactor
-    ior: 1.45,                  // KHR_materials_ior
-    thickness: 0.5,             // KHR_materials_volume: thicknessFactor
-    attenuationColor: new THREE.Color(0xF2ECE0),
-    attenuationDistance: 1.2,
-    roughness: 0.42,
+    transmission: 1.0,          // KHR_materials_transmission: transmissionFactor
+    ior: 1.5,                   // KHR_materials_ior
+    thickness: 0.35,            // KHR_materials_volume: thicknessFactor
+    attenuationColor: new THREE.Color(0xEBD8B4),
+    attenuationDistance: 2.4,
+    roughness: 0.05,
     metalness: 0,
     color: 0xffffff,
-    clearcoat: 0.7,
-    clearcoatRoughness: 0.12,
   });
 
   const body = new THREE.Mesh(new RoundedBoxGeometry(W, H, D, 3, R), glassMat);
