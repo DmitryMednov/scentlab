@@ -100,10 +100,10 @@ function Hero({ onLearnMore }) {
 
       {/* static fallback ground for no-WebGL clients (top zone) */}
       <div data-sl-bg="" style={{ position:'absolute', left:0, right:0, top:0, bottom:panelH, zIndex:5,
-        background:'radial-gradient(120% 100% at 50% 35%, #FBFDFA 0%, #E8EDE7 45%, #C2C9C4 100%)' }} />
+        background:'radial-gradient(120% 100% at 50% 35%, #C8E4C9 0%, #7FB9AE 45%, #2E4A52 100%)' }} />
 
       {/* solid panel with the pitch */}
-      <div style={{ position:'absolute', left:0, right:0, bottom:0, height:panelH, zIndex:8, background:'var(--bone-100)',
+      <div style={{ position:'absolute', left:0, right:0, bottom:0, height:panelH, zIndex:8, background:'#FFFFFF',
         display:'flex', alignItems:'center', justifyContent:'center',
         boxShadow:'0 -30px 70px rgba(16,12,9,.16)' }}>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center',

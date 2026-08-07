@@ -105,12 +105,11 @@ function buildFluid(group) {
     const w2 = vec3(fbm(w2p), fbm(w2p.add(vec3(8.3, 2.8, 4.2))), 0);
     const f = fbm(p.add(w2.mul(2.2))).mul(0.5).add(0.5);
 
-    /* palette: white pearl — soft grays folding into white, so the clear
-       flacon and its champagne water carry the color */
-    const deep = color('#B9C0BC');
-    const mid = color('#D6DBD5');
-    const glass = color('#EAEEE8');
-    const light = color('#FBFDFA');
+    /* palette: abyss -> sea glass -> sage light (origin scene) */
+    const deep = color('#0C171B');
+    const mid = color('#2E4A52');
+    const glass = color('#7FB9AE');
+    const light = color('#C8E4C9');
 
     const c = mix(deep, mid, smoothstep(0.15, 0.5, f)).toVar();
     c.assign(mix(c, glass, smoothstep(0.5, 0.78, f)));
@@ -130,9 +129,9 @@ function buildFluid(group) {
     const sheenMask = smoothstep(0.35, 0.75, f).mul(smoothstep(0.95, 0.55, f));
     c.addAssign(pearl.mul(vec3(0.10, 0.07, 0.12)).mul(sheenMask));
 
-    /* corner vignette, gentle on the light ground */
+    /* corner vignette keeps the type readable */
     const d = uv().sub(0.5).length();
-    c.mulAssign(smoothstep(0.95, 0.35, d).mul(0.22).add(0.78));
+    c.mulAssign(smoothstep(0.95, 0.35, d).mul(0.75).add(0.25));
     return c;
   })();
 
@@ -678,20 +677,16 @@ function buildBottle(group) {
   const liquidMat = new THREE.MeshPhysicalNodeMaterial({
     roughness: 0.12,
     metalness: 0,
-    color: 0xffffff,
     clearcoat: 1.0,
     clearcoatRoughness: 0.1,
-    transparent: true,
   });
-  /* the liquid alpha-blends in the transparent pass, after the glass — the
-     glass must not write depth or it would cull the liquid behind its front
-     face (three's transmission pass only refracts opaque geometry, so the
-     liquid can't live inside the refraction path at all) */
-  glassMat.depthWrite = false;
-  /* fully clear water: no body tint at all — the read comes from the rippled
-     heightfield surface (exact analytic normals: the sines are the height,
-     their cosines the derivatives) catching specular light. Body walls are a
-     whisper of alpha so the fill level stays legible from the side. */
+  /* OPAQUE on purpose. A transparent liquid and transmissive glass are both
+     "transparent" to the sorter; their draw order flips as the bottle turns
+     and the water blinks in and out (worse still, the glass refracts only
+     the opaque scene, so whenever it draws last the water vanishes behind
+     the refraction). An opaque body lives inside the transmission path:
+     always visible, properly refracted, volume rock-stable. The champagne
+     look comes from color, waves and gloss instead of alpha. */
   /* nearly flush with the walls: a visible side gap makes the water read as
      a floating slab whose volume "jumps" as the bottle turns */
   const LW = W * 0.94, LH = H * 0.52, LD = D * 0.85;
@@ -711,12 +706,10 @@ function buildBottle(group) {
     const topFace = smoothstep(float(0.55), float(0.9), normalLocal.y);
     liquidMat.normalNode = transformNormalToView(mix(normalLocal, waveN, topFace).normalize());
 
-    /* amber, sitting between the two grounds in tone: lighter than the sea
-       backdrop, darker than the bone panel — so the SAME body of water stays
-       visible across the seam. A pale near-panel tint vanished against the
-       panel and made the visible volume "jump" with every sway. */
-    liquidMat.colorNode = vec3(0.82, 0.58, 0.22);
-    liquidMat.opacityNode = mix(float(0.45), float(0.66), topFace);
+    /* light champagne, a touch deeper toward the base — one smooth ramp
+       across the whole height, no mid-body banding */
+    const dgrad = smoothstep(float(-LH * 0.5), float(LH * 0.5), positionLocal.y);
+    liquidMat.colorNode = mix(vec3(0.68, 0.48, 0.17), vec3(0.90, 0.72, 0.34), dgrad);
   }
   const liquid = new THREE.Mesh(new RoundedBoxGeometry(LW, LH, LD, 5, R * 0.5), liquidMat);
   /* sit the water on the bottom of the glass — a floating slab with an empty
