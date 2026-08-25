@@ -155,13 +155,13 @@ function Hero({ onLearnMore }) {
         <div>
           {/* dark scenes need a light wordmark; fluid/air keep ink */}
           <div style={{ fontFamily:'var(--font-display)', fontWeight:400, fontSize: narrow ? 20 : 24, letterSpacing:'.01em', lineHeight:1,
-            color:['sunset','tornado','ice','fire'].includes(fxVariant) ? 'var(--bone-100)' : 'var(--ink-800)',
-            textShadow:['sunset','tornado','ice','fire'].includes(fxVariant) ? '0 1px 14px rgba(0,0,0,.45)' : undefined }}>
+            color:['sunset','tornado','fire'].includes(fxVariant) ? 'var(--bone-100)' : 'var(--ink-800)',
+            textShadow:['sunset','tornado','fire'].includes(fxVariant) ? '0 1px 14px rgba(0,0,0,.45)' : undefined }}>
             Scent <i>Lab</i>
           </div>
           <div style={{ fontFamily:'var(--font-text)', fontSize: narrow ? 8.5 : 10, fontWeight:500, letterSpacing:'.3em',
             textTransform:'uppercase', marginTop:6,
-            color:['sunset','tornado','ice','fire'].includes(fxVariant) ? 'var(--gold-300)' : 'var(--gold-700)' }}>
+            color:['sunset','tornado','fire'].includes(fxVariant) ? 'var(--gold-300)' : 'var(--gold-700)' }}>
             for team building
           </div>
         </div>

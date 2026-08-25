@@ -301,9 +301,10 @@ function buildTornado(group) {
   const dark = new THREE.Mesh(cylinderGeometry, darkMaterial);
   group.add(dark);
 
-  /* place the vortex behind and to the side of the bottle */
+  /* place the vortex behind and to the side of the bottle, riding high
+     enough that its body lives in the visible top zone */
   group.scale.setScalar(4.2);
-  group.position.set(-1.6, -3.2, -6);
+  group.position.set(-1.8, -1.3, -6);
 
   return { exposure: 1.0, toneMapping: THREE.ACESFilmicToneMapping, bloom: true, clearColor: 0x201919 };
 }
@@ -333,9 +334,12 @@ function buildIce(group) {
   material.normalNode = normalMap(texture(normalTexture, scaledUV));
   material.metalness = 0;
 
+  /* poster framing: a floor below eye level projects into the bottom half
+     of the frame — exactly the zone the frosted panel covers. Stand the ice
+     up as a leaning wall behind the bottle so it fills the visible top. */
   const ground = new THREE.Mesh(new THREE.CircleGeometry(25, 64), material);
-  ground.rotateX(-Math.PI / 2);
-  ground.position.y = -2.6;
+  ground.rotation.x = -0.30;
+  ground.position.set(0, 1.2, -7);
   group.add(ground);
 
   /* cold light + aquatic backdrop gradient */
@@ -354,7 +358,8 @@ function buildIce(group) {
   backdrop.position.set(0, 6, -18);
   group.add(backdrop);
 
-  return { exposure: 2.2, toneMapping: THREE.ReinhardToneMapping, orbit: true };
+  /* no orbit: the camera sway shifted the bottle off its seam anchor */
+  return { exposure: 2.2, toneMapping: THREE.ReinhardToneMapping };
 }
 
 /* ------------------------------------------------------------------ */
@@ -362,13 +367,10 @@ function buildIce(group) {
 /* ------------------------------------------------------------------ */
 
 function buildFire(group) {
-  if (!isWebGPU) return buildFlame2D(group);
-  try {
-    return buildVolumeFire(group);
-  } catch (e) {
-    console.warn('[fx] volume fire failed, using 2D flame', e);
-    return buildFlame2D(group);
-  }
+  /* the volumetric sim proved unreliable across real WebGPU devices (compute
+     runs, raymarch shows nothing — just its backdrop); the 2D flame reads
+     beautifully and behaves identically everywhere */
+  return buildFlame2D(group);
 }
 
 function buildFlame2D(group) {
@@ -392,8 +394,10 @@ function buildFlame2D(group) {
     return vec4(c.mul(3.2), shape.smoothstep(0.02, 0.35));
   })();
 
+  /* off to the side — dead-centre the flame backlights the glass into a
+     white blob; beside it, the bottle reads against the ember glow */
   const flame = new THREE.Mesh(new THREE.PlaneGeometry(10, 13), mat);
-  flame.position.set(0, 2.6, -6);
+  flame.position.set(-3.4, 2.6, -6);
   group.add(flame);
 
   const bgMat = new THREE.MeshBasicNodeMaterial();
@@ -918,9 +922,13 @@ function animateInner() {
   const split = 0.50;                               /* animated share, from the top */
   const halfH0 = 6.7 * Math.tan((35 * Math.PI / 180) / 2);
   const lineY = (1 - 2 * split) * halfH0;           /* seam in world units at z=0 */
-  const baseS = narrow ? 0.62 : 0.79;
+  /* full-bleed variants put the frosted panel ABOVE the canvas, so the
+     bottle must live entirely in the top zone — smaller, floating clear of
+     the seam. The fluid page keeps the big bottle astride the seam. */
+  const fullBleed = POSTER_IDX !== 0;
+  const baseS = fullBleed ? (narrow ? 0.5 : 0.58) : (narrow ? 0.62 : 0.79);
   const baseX = 0;
-  const dip = narrow ? 0.26 : 0.55;                 /* how far the glass reaches below the seam */
+  const dip = fullBleed ? -0.14 : (narrow ? 0.26 : 0.55); /* glass reach below the seam */
   const baseY = lineY + 1.3 * baseS - dip;
 
   if (fluidPlane) {
