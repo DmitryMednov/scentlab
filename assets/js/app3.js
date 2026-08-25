@@ -94,16 +94,33 @@ function FallbackBottle({ narrow }) {
 function Hero({ onLearnMore }) {
   const narrow = useNarrow();
   const panelH = '50%';
+  /* full-bleed fx variants (sky, ice, fire…) paint the whole canvas, so the
+     panel must ride ABOVE the canvas as frosted glass; the fluid scene stays
+     top-only with the bottle overlapping a solid white panel */
+  const fxVariant = window.SL_FX_VARIANT || 'fluid';
+  const fxFull = fxVariant !== 'fluid';
 
   return (
     <section aria-label="Scent Lab — perfume-making team building" style={{ position:'relative', height:'100vh', overflow:'hidden', background:'var(--ink-900)' }}>
 
-      {/* static fallback ground for no-WebGL clients (top zone) */}
-      <div data-sl-bg="" style={{ position:'absolute', left:0, right:0, top:0, bottom:panelH, zIndex:5,
-        background:'radial-gradient(120% 100% at 50% 35%, #C8E4C9 0%, #7FB9AE 45%, #2E4A52 100%)' }} />
+      {/* static fallback ground for no-WebGL clients (top zone), matched to
+          the page's fx variant */}
+      <div data-sl-bg="" style={{ position:'absolute', left:0, right:0, top:0, bottom:fxFull ? 0 : panelH, zIndex:5,
+        background:({
+          fluid:'radial-gradient(120% 100% at 50% 35%, #C8E4C9 0%, #7FB9AE 45%, #2E4A52 100%)',
+          sunset:'radial-gradient(120% 100% at 50% 35%, #F2C98A 0%, #D98E4A 45%, #6B3A1A 100%)',
+          tornado:'radial-gradient(120% 100% at 50% 35%, #E8C989 0%, #B98A4E 45%, #3A2A1C 100%)',
+          ice:'radial-gradient(120% 100% at 50% 35%, #EAF4F4 0%, #BFDDE0 45%, #5E8A96 100%)',
+          fire:'radial-gradient(120% 100% at 50% 35%, #F4A85E 0%, #C4521C 45%, #2A0F06 100%)',
+          air:'radial-gradient(120% 100% at 50% 35%, #F6EBD8 0%, #E4CFA9 45%, #8A7350 100%)',
+        })[fxVariant] }} />
 
-      {/* solid panel with the pitch */}
-      <div style={{ position:'absolute', left:0, right:0, bottom:0, height:panelH, zIndex:8, background:'#FFFFFF',
+      {/* pitch panel: solid white under the canvas (fluid), frosted glass
+          above it (full-bleed scenes) */}
+      <div style={{ position:'absolute', left:0, right:0, bottom:0, height:panelH, zIndex:fxFull ? 12 : 8,
+        background:fxFull ? 'rgba(252,250,246,.9)' : '#FFFFFF',
+        backdropFilter:fxFull ? 'blur(18px) saturate(1.15)' : undefined,
+        WebkitBackdropFilter:fxFull ? 'blur(18px) saturate(1.15)' : undefined,
         display:'flex', alignItems:'center', justifyContent:'center',
         boxShadow:'0 -30px 70px rgba(16,12,9,.16)' }}>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center',
@@ -136,11 +153,15 @@ function Hero({ onLearnMore }) {
       <header style={{ position:'absolute', top:0, left:0, right:0, zIndex:20, display:'flex', alignItems:'flex-start',
         justifyContent:'space-between', padding: narrow ? '18px 20px' : '26px clamp(24px,3vw,56px)' }}>
         <div>
-          <div style={{ fontFamily:'var(--font-display)', fontWeight:400, fontSize: narrow ? 20 : 24, letterSpacing:'.01em', lineHeight:1, color:'var(--ink-800)' }}>
+          {/* dark scenes need a light wordmark; fluid/air keep ink */}
+          <div style={{ fontFamily:'var(--font-display)', fontWeight:400, fontSize: narrow ? 20 : 24, letterSpacing:'.01em', lineHeight:1,
+            color:['sunset','tornado','ice','fire'].includes(fxVariant) ? 'var(--bone-100)' : 'var(--ink-800)',
+            textShadow:['sunset','tornado','ice','fire'].includes(fxVariant) ? '0 1px 14px rgba(0,0,0,.45)' : undefined }}>
             Scent <i>Lab</i>
           </div>
           <div style={{ fontFamily:'var(--font-text)', fontSize: narrow ? 8.5 : 10, fontWeight:500, letterSpacing:'.3em',
-            textTransform:'uppercase', marginTop:6, color:'var(--gold-700)' }}>
+            textTransform:'uppercase', marginTop:6,
+            color:['sunset','tornado','ice','fire'].includes(fxVariant) ? 'var(--gold-300)' : 'var(--gold-700)' }}>
             for team building
           </div>
         </div>

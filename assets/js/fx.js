@@ -24,6 +24,23 @@ const ASSETS = 'assets/img/fx/';
 /* Scene index -> effect. 6 (arrival) keeps its photographic plate. */
 const SCENE_FX = ['fluid', 'sky-warm', 'tornado', 'ice', 'fire', 'sky-air', null];
 
+/* A/B page variants. Each poster page sets window.SL_FX_VARIANT before this
+   module loads; the page is the same one-screen poster with a different
+   scene behind the bottle and a different fragrance in it. */
+const VARIANT_IDX = { fluid: 0, sunset: 1, tornado: 2, ice: 3, fire: 4, air: 5 };
+const POSTER_IDX = VARIANT_IDX[window.SL_FX_VARIANT] ?? 0;
+
+/* liquid ramp per variant: [base, top] — kept light and diluted so the
+   Fresnel edge-lightening reads as translucency on every ground */
+const LIQUID_RAMPS = [
+  [[0.78, 0.45, 0.40], [0.95, 0.76, 0.70]], // fluid — watered rosé
+  [[0.55, 0.28, 0.12], [0.88, 0.60, 0.32]], // sunset — cognac amber
+  [[0.30, 0.50, 0.54], [0.68, 0.85, 0.87]], // tornado — marine aqua
+  [[0.20, 0.42, 0.50], [0.58, 0.80, 0.84]], // ice — glacial teal
+  [[0.48, 0.10, 0.07], [0.86, 0.36, 0.24]], // fire — spiced rouge
+  [[0.46, 0.38, 0.62], [0.81, 0.75, 0.90]], // air — lavender
+];
+
 const VEIL_GRADS = [
   ['rgba(140,190,150,.9)', 'rgba(12,23,27,.95)'],
   ['rgba(200,140,70,.9)', 'rgba(46,26,10,.95)'],
@@ -153,7 +170,7 @@ function buildSky(group, variant) {
 
   const sun = new THREE.Vector3();
   const cfg = variant === 'warm'
-    ? { turbidity: 10, rayleigh: 3, mieCoefficient: 0.005, mieDirectionalG: 0.8, elevation: 9, azimuth: 12, exposure: 0.6, cloudCoverage: 0.45, cloudDensity: 0.5, cloudElevation: 0.45 }
+    ? { turbidity: 10, rayleigh: 3, mieCoefficient: 0.005, mieDirectionalG: 0.8, elevation: 5, azimuth: 28, exposure: 0.72, cloudCoverage: 0.45, cloudDensity: 0.5, cloudElevation: 0.45 }
     : { turbidity: 3.6, rayleigh: 1.6, mieCoefficient: 0.003, mieDirectionalG: 0.65, elevation: 24, azimuth: -95, exposure: 0.34, cloudCoverage: 0.3, cloudDensity: 0.34, cloudElevation: 0.62 };
 
   sky.turbidity.value = cfg.turbidity;
@@ -711,7 +728,8 @@ function buildBottle(group) {
        diluted ramp, plus Fresnel lightening toward grazing angles so the
        edges look like light passing through the liquid */
     const dgrad = smoothstep(float(-LH * 0.5), float(LH * 0.5), positionLocal.y);
-    const body = mix(vec3(0.78, 0.45, 0.40), vec3(0.95, 0.76, 0.70), dgrad);
+    const [rampBase, rampTop] = LIQUID_RAMPS[POSTER_IDX] || LIQUID_RAMPS[0];
+    const body = mix(vec3(...rampBase), vec3(...rampTop), dgrad);
     const nv = transformNormalToView(normalLocal);
     const fres = float(1.0).sub(nv.z.abs()).pow(2.0);
     liquidMat.colorNode = mix(body, vec3(0.97, 0.90, 0.87), fres.mul(0.55));
@@ -1013,10 +1031,10 @@ async function init() {
 
   document.body.classList.add('sl-fx-on');
 
-  /* single-poster mode: the fluid environment is the one and only scene */
-  activateEffect(0);
-  activeIdx = 0;
-  pendingIdx = 0;
+  /* single-poster mode: one scene per page, chosen by the page's variant */
+  activateEffect(POSTER_IDX);
+  activeIdx = POSTER_IDX;
+  pendingIdx = POSTER_IDX;
 
   const onResize = () => {
     const w = mountEl.clientWidth, h = mountEl.clientHeight;
