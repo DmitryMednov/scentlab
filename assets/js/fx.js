@@ -301,10 +301,10 @@ function buildTornado(group) {
   const dark = new THREE.Mesh(cylinderGeometry, darkMaterial);
   group.add(dark);
 
-  /* place the vortex behind and to the side of the bottle, riding high
-     enough that its body lives in the visible top zone */
+  /* centred behind the bottle, riding high enough that the funnel's body
+     lives in the visible top zone */
   group.scale.setScalar(4.2);
-  group.position.set(-1.8, -1.3, -6);
+  group.position.set(-0.4, -1.3, -6);
 
   return { exposure: 1.0, toneMapping: THREE.ACESFilmicToneMapping, bloom: true, clearColor: 0x201919 };
 }
@@ -321,7 +321,8 @@ function buildIce(group) {
   const bottomTexture = loadTex('ice-deep.jpg', true);
 
   const scaleUV = uniform(3);
-  const scaledUV = uv().mul(scaleUV);
+  /* slow glacial drift so the ice is alive, not a still photo */
+  const scaledUV = uv().mul(scaleUV).add(vec2(time.mul(0.014), time.mul(-0.009)));
   const parallaxScale = uniform(0.5);
   const offsetUV = texture(displaceTexture, scaledUV).mul(parallaxScale);
   const parallaxUVOffset = parallaxUV(scaledUV, offsetUV);
@@ -394,11 +395,16 @@ function buildFlame2D(group) {
     return vec4(c.mul(3.2), shape.smoothstep(0.02, 0.35));
   })();
 
-  /* off to the side — dead-centre the flame backlights the glass into a
-     white blob; beside it, the bottle reads against the ember glow */
-  const flame = new THREE.Mesh(new THREE.PlaneGeometry(10, 13), mat);
-  flame.position.set(-3.4, 2.6, -6);
+  /* twin fires flanking the bottle — dead-centre a flame backlights the
+     glass into a white blob, so the pair frames it instead */
+  const flame = new THREE.Mesh(new THREE.PlaneGeometry(20, 17), mat);
+  flame.position.set(-3.6, 3.1, -6.5);
   group.add(flame);
+  const flame2 = new THREE.Mesh(new THREE.PlaneGeometry(20, 17), mat);
+  flame2.position.set(3.9, 2.6, -7.5);
+  flame2.scale.x = -0.9;
+  flame2.scale.y = 0.85;
+  group.add(flame2);
 
   const bgMat = new THREE.MeshBasicNodeMaterial();
   bgMat.colorNode = Fn(() => {
@@ -768,6 +774,32 @@ function applyFxConfig(cfg) {
   renderer.toneMappingExposure = cfg.exposure ?? 1;
 }
 
+/* every variant keeps the fluid page's composition: scene on top, white
+   panel below, the BIG bottle riding the seam. The camera sits level at
+   y=0, so the seam (screen centre) maps to the world plane y=0 at every
+   depth. A white occluder quad with its top edge on that plane, placed
+   nearer than any scene geometry but behind the bottle, erases the scene
+   below the seam by plain depth testing — it reads as the page panel, the
+   bottle draws over it, and the glass refracts it as white. (Material
+   clipping planes are not honored by this renderer build.) */
+/* NOTE: must live on an untransformed parent (bgGroup) — inside an effect
+   group it would inherit that scene's scale/offset (the tornado taught us) */
+function addPosterOccluder(group) {
+  /* depth-only: rendered first, it stakes out the near depth below the seam
+     so every scene fragment behind it is discarded — while the color buffer
+     keeps the renderer's transparent clear, letting the DOM panel (and its
+     text) show through exactly as on the fluid page */
+  const occMat = new THREE.MeshBasicNodeMaterial();
+  occMat.colorWrite = false;
+  const occ = new THREE.Mesh(new THREE.PlaneGeometry(160, 40), occMat);
+  /* top edge exactly at y=0; as near as possible without touching the
+     bottle so that even scene geometry reaching toward the camera (the
+     tornado's ground swirl) still falls behind it */
+  occ.position.set(0, -20, -1.2);
+  occ.renderOrder = -1;
+  group.add(occ);
+}
+
 function activateEffect(idx) {
   const name = SCENE_FX[idx];
   if (currentFx && currentFx.group) currentFx.group.visible = false;
@@ -922,13 +954,9 @@ function animateInner() {
   const split = 0.50;                               /* animated share, from the top */
   const halfH0 = 6.7 * Math.tan((35 * Math.PI / 180) / 2);
   const lineY = (1 - 2 * split) * halfH0;           /* seam in world units at z=0 */
-  /* full-bleed variants put the frosted panel ABOVE the canvas, so the
-     bottle must live entirely in the top zone — smaller, floating clear of
-     the seam. The fluid page keeps the big bottle astride the seam. */
-  const fullBleed = POSTER_IDX !== 0;
-  const baseS = fullBleed ? (narrow ? 0.5 : 0.58) : (narrow ? 0.62 : 0.79);
+  const baseS = narrow ? 0.62 : 0.79;
   const baseX = 0;
-  const dip = fullBleed ? -0.14 : (narrow ? 0.26 : 0.55); /* glass reach below the seam */
+  const dip = narrow ? 0.26 : 0.55;                 /* how far the glass reaches below the seam */
   const baseY = lineY + 1.3 * baseS - dip;
 
   if (fluidPlane) {
@@ -980,7 +1008,10 @@ function buildBloomPipeline() {
     const scenePass = pass(scene, camera);
     const scenePassColor = scenePass.getTextureNode('output');
     const bloomPass = bloom(scenePassColor, 0.6, 0.2, 0.9);
-    bloomPipeline.outputNode = scenePassColor.add(bloomPass);
+    /* keep the scene's alpha: the canvas must stay transparent below the
+       seam so the DOM panel shows through (premultiplied, so rgb×a) */
+    const combined = scenePassColor.add(bloomPass);
+    bloomPipeline.outputNode = vec4(combined.rgb.mul(scenePassColor.a), scenePassColor.a);
   } catch (e) {
     console.warn('[fx] bloom unavailable', e);
     bloomPipeline = null;
@@ -1035,6 +1066,7 @@ async function init() {
   }
 
   buildBottle(bottleGroup);
+  if (POSTER_IDX !== 0) addPosterOccluder(bgGroup);
   buildBloomPipeline();
 
   document.body.classList.add('sl-fx-on');

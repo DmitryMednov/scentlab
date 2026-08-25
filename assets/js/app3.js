@@ -105,7 +105,7 @@ function Hero({ onLearnMore }) {
 
       {/* static fallback ground for no-WebGL clients (top zone), matched to
           the page's fx variant */}
-      <div data-sl-bg="" style={{ position:'absolute', left:0, right:0, top:0, bottom:fxFull ? 0 : panelH, zIndex:5,
+      <div data-sl-bg="" style={{ position:'absolute', left:0, right:0, top:0, bottom:panelH, zIndex:5,
         background:({
           fluid:'radial-gradient(120% 100% at 50% 35%, #C8E4C9 0%, #7FB9AE 45%, #2E4A52 100%)',
           sunset:'radial-gradient(120% 100% at 50% 35%, #F2C98A 0%, #D98E4A 45%, #6B3A1A 100%)',
@@ -115,12 +115,10 @@ function Hero({ onLearnMore }) {
           air:'radial-gradient(120% 100% at 50% 35%, #F6EBD8 0%, #E4CFA9 45%, #8A7350 100%)',
         })[fxVariant] }} />
 
-      {/* pitch panel: solid white under the canvas (fluid), frosted glass
-          above it (full-bleed scenes) */}
-      <div style={{ position:'absolute', left:0, right:0, bottom:0, height:panelH, zIndex:fxFull ? 12 : 8,
-        background:fxFull ? 'rgba(252,250,246,.9)' : '#FFFFFF',
-        backdropFilter:fxFull ? 'blur(18px) saturate(1.15)' : undefined,
-        WebkitBackdropFilter:fxFull ? 'blur(18px) saturate(1.15)' : undefined,
+      {/* solid panel with the pitch — always under the canvas, so the big
+          bottle rides the seam on every variant; the scenes themselves are
+          clipped to the top zone in fx.js */}
+      <div style={{ position:'absolute', left:0, right:0, bottom:0, height:panelH, zIndex:8, background:'#FFFFFF',
         display:'flex', alignItems:'center', justifyContent:'center',
         boxShadow:'0 -30px 70px rgba(16,12,9,.16)' }}>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center',
