@@ -1,0 +1,2 @@
+Playfair Display and Pinyon Script, SIL Open Font License 1.1 (via @fontsource 5.3.0).
+Inter (Inter-Variable.woff2), Instrument Serif (InstrumentSerif-Italic.woff2) and Montserrat (Montserrat-Variable.woff2), latin subsets from Google Fonts; and Bodoni Moda (BodoniModa-*.woff2) and Jost (Jost-Variable.woff2), SIL Open Font License 1.1 (via @fontsource 5.3.0); Jost full license text in LICENSE-OFL-Jost.txt.

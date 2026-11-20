@@ -1,0 +1,24 @@
+/* ---------- scroll story (only when a story build is active) ---------- */
+html.has-story,
+html.has-story body {
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+html.has-story::-webkit-scrollbar,
+html.has-story body::-webkit-scrollbar {
+  display: none;
+}
+
+html.has-story.story-locked,
+html.has-story.story-locked body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.story-track {
+  position: relative;
+  pointer-events: none;
+}
